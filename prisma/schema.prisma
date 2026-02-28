@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -16,10 +17,10 @@ model User {
   name          String?
   password      String?
   image         String?
-  role          String         @default("USER") // "USER" or "ADMIN"
-  isActive      Boolean        @default(true) // Can be deactivated by admin
-  bannedAt      DateTime?      // When user was banned
-  lastLoginAt   DateTime?      // Track last login
+  role          String         @default("USER")
+  isActive      Boolean        @default(true)
+  bannedAt      DateTime?
+  lastLoginAt   DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   routines      Routine[]
@@ -38,7 +39,7 @@ model Routine {
   description String?
   isActive    Boolean      @default(false)
   isArchived  Boolean      @default(false)
-  aiAnalysis  String?      // AI-generated analysis
+  aiAnalysis  String?
   userId      String
   user        User         @relation(fields: [userId], references: [id])
   days        WorkoutDay[]
@@ -49,8 +50,8 @@ model Routine {
 
 model WorkoutDay {
   id           String      @id @default(cuid())
-  name         String      // e.g., "Día 1 - Pecho", "Leg Day"
-  dayNumber    Int         // 1-7
+  name         String
+  dayNumber    Int
   routineId    String
   routine      Routine     @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises    Exercise[]
@@ -61,10 +62,10 @@ model WorkoutDay {
 model Exercise {
   id            String      @id @default(cuid())
   name          String
-  muscleGroup   String?     // e.g., "chest", "back", "legs", etc.
-  thumbnailUrl  String?     // URL to exercise image/gif
+  muscleGroup   String?
+  thumbnailUrl  String?
   sets          Int?
-  reps          String?     // Can be "10-12", "8", "12-15", etc.
+  reps          String?
   weight        Float?
   weightUnit    String      @default("kg")
   notes         String?
@@ -78,19 +79,19 @@ model Exercise {
 model PhysicalProgress {
   id              String    @id @default(cuid())
   date            DateTime  @default(now())
-  bodyWeight      Float?    // Peso corporal
-  backMeasurement Float?    // Espalda
-  chestMeasurement Float?   // Pecho
-  leftArmMeasurement Float? // Brazo izquierdo
-  rightArmMeasurement Float? // Brazo derecho
-  abdomenMeasurement Float? // Abdomen
-  glutesMeasurement Float?  // Glúteos
-  rightLegMeasurement Float? // Pierna derecha
-  leftLegMeasurement Float? // Pierna izquierda
-  frontPhoto      String?   // Base64 o URL
-  sidePhoto       String?   // Base64 o URL
-  backPhoto       String?   // Base64 o URL
-  extraPhoto      String?   // Foto adicional
+  bodyWeight      Float?
+  backMeasurement Float?
+  chestMeasurement Float?
+  leftArmMeasurement Float?
+  rightArmMeasurement Float?
+  abdomenMeasurement Float?
+  glutesMeasurement Float?
+  rightLegMeasurement Float?
+  leftLegMeasurement Float?
+  frontPhoto      String?
+  sidePhoto       String?
+  backPhoto       String?
+  extraPhoto      String?
   notes           String?
   userId          String
   user            User      @relation(fields: [userId], references: [id])
@@ -104,20 +105,19 @@ model Diet {
   description   String?
   isActive      Boolean     @default(false)
   isArchived    Boolean     @default(false)
-  dietType      String?     @default("training_day") // "training_day" or "rest_day"
+  dietType      String?     @default("training_day")
   startDate     DateTime?
   endDate       DateTime?
-  // Macro totals
   totalCalories Float?
-  totalProtein  Float?      // gramos
-  totalCarbs    Float?      // gramos
-  totalFat      Float?      // gramos
-  totalFiber    Float?      // gramos
-  vitaminA      Float?      // % RDA
-  vitaminC      Float?      // % RDA
-  vitaminD      Float?      // % RDA
-  calcium       Float?      // % RDA
-  iron          Float?      // % RDA
+  totalProtein  Float?
+  totalCarbs    Float?
+  totalFat      Float?
+  totalFiber    Float?
+  vitaminA      Float?
+  vitaminC      Float?
+  vitaminD      Float?
+  calcium       Float?
+  iron          Float?
   userId        String
   user          User        @relation(fields: [userId], references: [id])
   meals         Meal[]
@@ -128,10 +128,10 @@ model Diet {
 
 model Meal {
   id          String      @id @default(cuid())
-  mealType    String      // "breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"
+  mealType    String
   name        String?
-  description String?     // Text description of the meal
-  time        String?     // e.g., "08:00"
+  description String?
+  time        String?
   calories    Float?
   protein     Float?
   carbs       Float?
@@ -147,7 +147,7 @@ model Meal {
 model MealItem {
   id          String    @id @default(cuid())
   name        String
-  quantity    Float     // cantidad en gramos
+  quantity    Float
   unit        String    @default("g")
   calories    Float?
   protein     Float?
@@ -164,11 +164,11 @@ model Recipe {
   id            String    @id @default(cuid())
   name          String
   description   String?
-  instructions  String    // JSON array of steps
-  ingredients   String    // JSON array of ingredients
+  instructions  String
+  ingredients   String
   servings      Int       @default(1)
-  prepTime      Int?      // minutes
-  cookTime      Int?      // minutes
+  prepTime      Int?
+  cookTime      Int?
   calories      Float?
   protein       Float?
   carbs         Float?

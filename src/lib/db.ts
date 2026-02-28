@@ -7,13 +7,22 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient() {
-  const isTurso = process.env.TURSO_AUTH_TOKEN || 
-                  process.env.DATABASE_URL?.startsWith('libsql://')
-
-  if (isTurso && process.env.DATABASE_URL) {
+  const databaseUrl = process.env.DATABASE_URL
+  const tursoAuthToken = process.env.TURSO_AUTH_TOKEN
+  
+  // Si no hay DATABASE_URL, usar SQLite local (para build)
+  if (!databaseUrl) {
+    console.warn('DATABASE_URL not found, using mock client for build')
+    return new PrismaClient({
+      log: ['error'],
+    })
+  }
+  
+  // Si hay TURSO_AUTH_TOKEN, usar Turso
+  if (tursoAuthToken) {
     const libsql = createClient({
-      url: process.env.DATABASE_URL,
-      authToken: process.env.TURSO_AUTH_TOKEN,
+      url: databaseUrl,
+      authToken: tursoAuthToken,
     })
     const adapter = new PrismaLibSql(libsql)
     return new PrismaClient({ 
@@ -22,6 +31,7 @@ function createPrismaClient() {
     })
   }
   
+  // Fallback a SQLite normal
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   })

@@ -6,37 +6,46 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-function createPrismaClient() {
+let cachedClient: PrismaClient | null = null
+
+export function getDb(): PrismaClient {
   const databaseUrl = process.env.DATABASE_URL
   const tursoAuthToken = process.env.TURSO_AUTH_TOKEN
 
-  // Si tenemos Turso credentials, usar adaptador
-  if (databaseUrl && databaseUrl.startsWith('libsql://') && tursoAuthToken) {
-    try {
-      const libsql = createClient({
-        url: databaseUrl,
-        authToken: tursoAuthToken,
-      })
-      const adapter = new PrismaLibSql(libsql)
-      return new PrismaClient({ 
-        adapter,
-        log: ['error'],
-      })
-    } catch (error) {
-      console.error('Error creating Turso client:', error)
-    }
+  // Si ya tenemos un cliente cached y las credenciales están disponibles
+  if (cachedClient && databaseUrl && tursoAuthToken) {
+    return cachedClient
   }
 
-  // Fallback: SQLite local
-  return new PrismaClient({
-    log: ['error'],
-  })
+  // Crear nuevo cliente
+  if (databaseUrl && databaseUrl.startsWith('libsql://') && tursoAuthToken) {
+    const libsql = createClient({
+      url: databaseUrl,
+      authToken: tursoAuthToken,
+    })
+    const adapter = new PrismaLibSql(libsql)
+    cachedClient = new PrismaClient({ 
+      adapter,
+      log: ['error'],
+    })
+    return cachedClient
+  }
+
+  // Fallback
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = new PrismaClient({ log: ['error'] })
+  }
+  return globalForPrisma.prisma
 }
 
-// En producción, crear una sola instancia
-// En desarrollo, usar global para hot reload
-export const db = globalForPrisma.prisma ?? createPrismaClient()
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = db
-}
+// Exportar como db para compatibilidad, pero usando getter
+export const db = new Proxy({} as PrismaClient, {
+  get(_, prop) {
+    const client = getDb()
+    const value = client[prop as keyof PrismaClient]
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    return value
+  }
+})

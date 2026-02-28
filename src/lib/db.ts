@@ -2,11 +2,9 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { createClient } from '@libsql/client'
 
-// Singleton para el cliente Prisma
 let prismaClient: PrismaClient | null = null
 
 export function getPrismaClient(): PrismaClient {
-  // Si ya existe, retornarlo
   if (prismaClient) {
     return prismaClient
   }
@@ -14,30 +12,39 @@ export function getPrismaClient(): PrismaClient {
   const databaseUrl = process.env.DATABASE_URL
   const tursoAuthToken = process.env.TURSO_AUTH_TOKEN
 
-  console.log('Initializing Prisma Client...')
-  console.log('DATABASE_URL:', databaseUrl ? 'SET' : 'UNDEFINED')
-  console.log('TURSO_AUTH_TOKEN:', tursoAuthToken ? 'SET' : 'UNDEFINED')
+  console.log('=== PRISMA DEBUG ===')
+  console.log('DATABASE_URL value:', databaseUrl)
+  console.log('DATABASE_URL type:', typeof databaseUrl)
+  console.log('TURSO_AUTH_TOKEN exists:', !!tursoAuthToken)
+  console.log('===================')
 
-  // Crear cliente con Turso
   if (databaseUrl && tursoAuthToken) {
+    console.log('Creating LibSQL client with URL:', databaseUrl)
+    
     const libsql = createClient({
       url: databaseUrl,
       authToken: tursoAuthToken,
     })
+    
+    console.log('LibSQL client created successfully')
+    
     const adapter = new PrismaLibSql(libsql)
+    console.log('Adapter created, now creating PrismaClient...')
+    
     prismaClient = new PrismaClient({ 
       adapter,
-      log: ['error', 'warn'],
+      log: ['query', 'error', 'warn'],
     })
+    
+    console.log('PrismaClient created successfully')
   } else {
-    // Fallback para build/desarrollo sin credenciales
+    console.log('WARNING: Creating PrismaClient without Turso adapter')
     prismaClient = new PrismaClient({ log: ['error'] })
   }
 
   return prismaClient
 }
 
-// Exportar función en lugar de instancia
 export const db = {
   get user() { return getPrismaClient().user },
   get routine() { return getPrismaClient().routine },

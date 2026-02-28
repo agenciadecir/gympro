@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  password      String?
+  image         String?
+  role          String         @default("USER") // "USER" or "ADMIN"
+  isActive      Boolean        @default(true) // Can be deactivated by admin
+  bannedAt      DateTime?      // When user was banned
+  lastLoginAt   DateTime?      // Track last login
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  routines      Routine[]
+  progress      PhysicalProgress[]
+  diets         Diet[]
+  recipes       Recipe[]
+  activeRoutine Routine?       @relation("ActiveRoutine", fields: [activeRoutineId], references: [id])
+  activeRoutineId String?      @unique
+  activeDiet    Diet?          @relation("ActiveDiet", fields: [activeDietId], references: [id])
+  activeDietId  String?        @unique
+}
+
+model Routine {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean      @default(false)
+  isArchived  Boolean      @default(false)
+  aiAnalysis  String?      // AI-generated analysis
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  days        WorkoutDay[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  activeForUser User?      @relation("ActiveRoutine")
+}
+
+model WorkoutDay {
+  id           String      @id @default(cuid())
+  name         String      // e.g., "Día 1 - Pecho", "Leg Day"
+  dayNumber    Int         // 1-7
+  routineId    String
+  routine      Routine     @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercises    Exercise[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Exercise {
+  id            String      @id @default(cuid())
+  name          String
+  muscleGroup   String?     // e.g., "chest", "back", "legs", etc.
+  thumbnailUrl  String?     // URL to exercise image/gif
+  sets          Int?
+  reps          String?     // Can be "10-12", "8", "12-15", etc.
+  weight        Float?
+  weightUnit    String      @default("kg")
+  notes         String?
+  order         Int         @default(0)
+  workoutDayId  String
+  workoutDay    WorkoutDay  @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model PhysicalProgress {
+  id              String    @id @default(cuid())
+  date            DateTime  @default(now())
+  bodyWeight      Float?    // Peso corporal
+  backMeasurement Float?    // Espalda
+  chestMeasurement Float?   // Pecho
+  leftArmMeasurement Float? // Brazo izquierdo
+  rightArmMeasurement Float? // Brazo derecho
+  abdomenMeasurement Float? // Abdomen
+  glutesMeasurement Float?  // Glúteos
+  rightLegMeasurement Float? // Pierna derecha
+  leftLegMeasurement Float? // Pierna izquierda
+  frontPhoto      String?   // Base64 o URL
+  sidePhoto       String?   // Base64 o URL
+  backPhoto       String?   // Base64 o URL
+  extraPhoto      String?   // Foto adicional
+  notes           String?
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Diet {
+  id            String      @id @default(cuid())
+  name          String
+  description   String?
+  isActive      Boolean     @default(false)
+  isArchived    Boolean     @default(false)
+  dietType      String?     @default("training_day") // "training_day" or "rest_day"
+  startDate     DateTime?
+  endDate       DateTime?
+  // Macro totals
+  totalCalories Float?
+  totalProtein  Float?      // gramos
+  totalCarbs    Float?      // gramos
+  totalFat      Float?      // gramos
+  totalFiber    Float?      // gramos
+  vitaminA      Float?      // % RDA
+  vitaminC      Float?      // % RDA
+  vitaminD      Float?      // % RDA
+  calcium       Float?      // % RDA
+  iron          Float?      // % RDA
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  meals         Meal[]
+  activeForUser User?       @relation("ActiveDiet")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Meal {
+  id          String      @id @default(cuid())
+  mealType    String      // "breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"
+  name        String?
+  description String?     // Text description of the meal
+  time        String?     // e.g., "08:00"
+  calories    Float?
+  protein     Float?
+  carbs       Float?
+  fat         Float?
+  fiber       Float?
+  dietId      String
+  diet        Diet        @relation(fields: [dietId], references: [id], onDelete: Cascade)
+  items       MealItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model MealItem {
+  id          String    @id @default(cuid())
+  name        String
+  quantity    Float     // cantidad en gramos
+  unit        String    @default("g")
+  calories    Float?
+  protein     Float?
+  carbs       Float?
+  fat         Float?
+  fiber       Float?
+  mealId      String
+  meal        Meal      @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Recipe {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  instructions  String    // JSON array of steps
+  ingredients   String    // JSON array of ingredients
+  servings      Int       @default(1)
+  prepTime      Int?      // minutes
+  cookTime      Int?      // minutes
+  calories      Float?
+  protein       Float?
+  carbs         Float?
+  fat           Float?
+  imageUrl      String?
+  isAiGenerated Boolean   @default(false)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}

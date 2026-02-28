@@ -2,50 +2,53 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { createClient } from '@libsql/client'
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-}
+// Singleton para el cliente Prisma
+let prismaClient: PrismaClient | null = null
 
-let cachedClient: PrismaClient | null = null
+export function getPrismaClient(): PrismaClient {
+  // Si ya existe, retornarlo
+  if (prismaClient) {
+    return prismaClient
+  }
 
-export function getDb(): PrismaClient {
   const databaseUrl = process.env.DATABASE_URL
   const tursoAuthToken = process.env.TURSO_AUTH_TOKEN
 
-  // Si ya tenemos un cliente cached y las credenciales están disponibles
-  if (cachedClient && databaseUrl && tursoAuthToken) {
-    return cachedClient
-  }
+  console.log('Initializing Prisma Client...')
+  console.log('DATABASE_URL:', databaseUrl ? 'SET' : 'UNDEFINED')
+  console.log('TURSO_AUTH_TOKEN:', tursoAuthToken ? 'SET' : 'UNDEFINED')
 
-  // Crear nuevo cliente
-  if (databaseUrl && databaseUrl.startsWith('libsql://') && tursoAuthToken) {
+  // Crear cliente con Turso
+  if (databaseUrl && tursoAuthToken) {
     const libsql = createClient({
       url: databaseUrl,
       authToken: tursoAuthToken,
     })
     const adapter = new PrismaLibSql(libsql)
-    cachedClient = new PrismaClient({ 
+    prismaClient = new PrismaClient({ 
       adapter,
-      log: ['error'],
+      log: ['error', 'warn'],
     })
-    return cachedClient
+  } else {
+    // Fallback para build/desarrollo sin credenciales
+    prismaClient = new PrismaClient({ log: ['error'] })
   }
 
-  // Fallback
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient({ log: ['error'] })
-  }
-  return globalForPrisma.prisma
+  return prismaClient
 }
 
-// Exportar como db para compatibilidad, pero usando getter
-export const db = new Proxy({} as PrismaClient, {
-  get(_, prop) {
-    const client = getDb()
-    const value = client[prop as keyof PrismaClient]
-    if (typeof value === 'function') {
-      return value.bind(client)
-    }
-    return value
-  }
-})
+// Exportar función en lugar de instancia
+export const db = {
+  get user() { return getPrismaClient().user },
+  get routine() { return getPrismaClient().routine },
+  get workoutDay() { return getPrismaClient().workoutDay },
+  get exercise() { return getPrismaClient().exercise },
+  get physicalProgress() { return getPrismaClient().physicalProgress },
+  get diet() { return getPrismaClient().diet },
+  get meal() { return getPrismaClient().meal },
+  get mealItem() { return getPrismaClient().mealItem },
+  get recipe() { return getPrismaClient().recipe },
+  $connect: () => getPrismaClient().$connect(),
+  $disconnect: () => getPrismaClient().$disconnect(),
+  $transaction: <T>(fn: (client: PrismaClient) => Promise<T>) => getPrismaClient().$transaction(fn),
+}

@@ -1,53 +1,40 @@
 import { PrismaClient } from '@prisma/client'
 
-let prismaClient: PrismaClient | null = null
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
 
-function getClient(): PrismaClient {
-  if (prismaClient) {
-    return prismaClient
-  }
-
+function createPrismaClient(): PrismaClient {
   const databaseUrl = process.env.DATABASE_URL
   const tursoAuthToken = process.env.TURSO_AUTH_TOKEN
 
   console.log('=== DB INIT ===')
-  console.log('DATABASE_URL:', databaseUrl || 'UNDEFINED')
+  console.log('DATABASE_URL:', databaseUrl)
   console.log('TURSO_AUTH_TOKEN:', tursoAuthToken ? 'SET' : 'UNDEFINED')
 
-  // Siempre usar Turso si hay credenciales
-  if (databaseUrl && tursoAuthToken && databaseUrl.startsWith('libsql://')) {
-    console.log('Creating PrismaClient with Turso adapter')
+  // Si tenemos credenciales de Turso, usar el adapter
+  if (databaseUrl?.startsWith('libsql://') && tursoAuthToken) {
+    console.log('Using Turso adapter')
     
-    try {
-      const { createClient } = require('@libsql/client')
-      const { PrismaLibSql } = require('@prisma/adapter-libsql')
-      
-      const libsql = createClient({
-        url: databaseUrl,
-        authToken: tursoAuthToken,
-      })
-      
-      const adapter = new PrismaLibSql(libsql)
-      prismaClient = new PrismaClient({ adapter, log: ['error', 'warn', 'query'] })
-      console.log('PrismaClient created successfully with adapter')
-      return prismaClient
-    } catch (error) {
-      console.error('Failed to create Turso adapter:', error)
-    }
+    const { createClient } = require('@libsql/client')
+    const { PrismaLibSql } = require('@prisma/adapter-libsql')
+    
+    const libsql = createClient({
+      url: databaseUrl,
+      authToken: tursoAuthToken,
+    })
+    
+    const adapter = new PrismaLibSql(libsql)
+    return new PrismaClient({ adapter, log: ['error'] })
   }
 
-  console.log('Creating PrismaClient without adapter (fallback)')
-  prismaClient = new PrismaClient({ log: ['error'] })
-  return prismaClient
+  // Fallback a SQLite local
+  console.log('Using local SQLite')
+  return new PrismaClient({ log: ['error'] })
 }
 
-export const db = new Proxy({} as PrismaClient, {
-  get(_, prop: string) {
-    const client = getClient()
-    const value = (client as unknown as Record<string, unknown>)[prop]
-    if (typeof value === 'function') {
-      return value.bind(client)
-    }
-    return value
-  }
-})
+export const db = globalForPrisma.prisma ?? createPrismaClient()
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = db
+}

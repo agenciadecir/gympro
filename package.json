@@ -9,7 +9,7 @@
   "lint": "eslint .",
   "db:push": "prisma db push",
   "db:generate": "prisma generate"
-}
+},
   "dependencies": {
     "@libsql/client": "^0.17.0",
     "@prisma/adapter-libsql": "^7.4.2",

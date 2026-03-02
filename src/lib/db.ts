@@ -42,7 +42,8 @@ function getClient(): PrismaClient {
 export const db = new Proxy({} as PrismaClient, {
   get(_, prop: string) {
     const client = getClient()
-    const value = (client as Record<string, unknown>)[prop]
+    // Convertir a unknown primero, luego a Record
+    const value = (client as unknown as Record<string, unknown>)[prop]
     if (typeof value === 'function') {
       return value.bind(client)
     }

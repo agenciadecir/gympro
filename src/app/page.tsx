@@ -203,7 +203,7 @@ interface Diet {
 
 interface PhysicalProgress {
   id: string
-  date: string
+  date: Date | string    // <-- Cambiar de "string" a "Date | string"
   bodyWeight: number | null
   backMeasurement: number | null
   chestMeasurement: number | null

@@ -2,13 +2,13 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model User {
@@ -41,7 +41,7 @@ model Routine {
   isArchived  Boolean      @default(false)
   aiAnalysis  String?
   userId      String
-  user        User         @relation(fields: [userId], references: [id])
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   days        WorkoutDay[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -94,7 +94,7 @@ model PhysicalProgress {
   extraPhoto      String?
   notes           String?
   userId          String
-  user            User      @relation(fields: [userId], references: [id])
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
@@ -119,7 +119,7 @@ model Diet {
   calcium       Float?
   iron          Float?
   userId        String
-  user          User        @relation(fields: [userId], references: [id])
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   meals         Meal[]
   activeForUser User?       @relation("ActiveDiet")
   createdAt     DateTime    @default(now())
@@ -176,7 +176,7 @@ model Recipe {
   imageUrl      String?
   isAiGenerated Boolean   @default(false)
   userId        String
-  user          User      @relation(fields: [userId], references: [id])
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }

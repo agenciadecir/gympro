@@ -1,8 +1,8 @@
 import type { NextAuthOptions } from "next-auth"
+import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { db } from "./db"
 
-// Simple hash function for passwords (in production, use bcrypt)
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(password)
@@ -13,6 +13,10 @@ async function hashPassword(password: string): Promise<string> {
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -28,13 +32,7 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email }
         })
 
-        if (!user || !user.password) {
-          return null
-        }
-        
-        // Check if user is banned or inactive
-        if (!user.isActive || user.bannedAt) {
-          // Return null but set a special error that can be caught
+        if (!user || !user.password || !user.isActive || user.bannedAt) {
           return null
         }
 
@@ -43,7 +41,6 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        // Update last login time
         await db.user.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() }
@@ -59,10 +56,48 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google" && user.email) {
+        try {
+          const existingUser = await db.user.findUnique({
+            where: { email: user.email }
+          })
+
+          if (!existingUser) {
+            await db.user.create({
+              data: {
+                email: user.email,
+                name: user.name || user.email.split('@')[0],
+                image: user.image,
+                role: "USER",
+                isActive: true,
+              }
+            })
+          } else if (!existingUser.isActive || existingUser.bannedAt) {
+            return false
+          } else {
+            await db.user.update({
+              where: { id: existingUser.id },
+              data: { lastLoginAt: new Date() }
+            })
+          }
+          return true
+        } catch (error) {
+          console.error("Error in signIn callback:", error)
+          return false
+        }
+      }
+      return true
+    },
     async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id
-        token.role = user.role
+      if (user?.email) {
+        const dbUser = await db.user.findUnique({
+          where: { email: user.email }
+        })
+        if (dbUser) {
+          token.id = dbUser.id
+          token.role = dbUser.role
+        }
       }
       return token
     },
@@ -80,7 +115,7 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt"
   },
-  secret: process.env.NEXTAUTH_SECRET || "gym-progress-tracker-secret-key-2024"
+  secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || "gym-progress-tracker-secret-key-2024"
 }
 
 export { hashPassword }

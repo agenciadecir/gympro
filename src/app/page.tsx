@@ -63,10 +63,10 @@ import {
   Area
 } from "recharts"
 
-// Exercise thumbnail mapping - using muscle group icons
+// Exercise thumbnail mapping
 const muscleGroupIcons: Record<string, string> = {
-  chest: "💪",
-  back: "🔙",
+  chest: "🏋️",
+  back: "🏋️",
   shoulders: "🏋️",
   biceps: "💪",
   triceps: "💪",
@@ -109,22 +109,16 @@ const exerciseDatabase: Record<string, { muscleGroup: string; thumbnail: string 
   "elevacion de talones": { muscleGroup: "calves", thumbnail: "🦶" }
 }
 
-// Helper to get exercise thumbnail
 function getExerciseThumbnail(name: string, muscleGroup?: string): { emoji: string; group: string } {
   const lowerName = name.toLowerCase()
-  
-  // Check database first
   for (const [key, value] of Object.entries(exerciseDatabase)) {
     if (lowerName.includes(key)) {
       return { emoji: value.thumbnail, group: value.muscleGroup }
     }
   }
-  
-  // Use muscle group if provided
   if (muscleGroup && muscleGroupIcons[muscleGroup.toLowerCase()]) {
     return { emoji: muscleGroupIcons[muscleGroup.toLowerCase()], group: muscleGroup }
   }
-  
   return { emoji: muscleGroupIcons.default, group: "general" }
 }
 
@@ -203,7 +197,7 @@ interface Diet {
 
 interface PhysicalProgress {
   id: string
-  date: Date | string    // <-- Cambiar de "string" a "Date | string"
+  date: Date | string
   bodyWeight: number | null
   backMeasurement: number | null
   chestMeasurement: number | null
@@ -236,7 +230,6 @@ interface Recipe {
   isAiGenerated: boolean
 }
 
-// Admin User interface
 interface AdminUser {
   id: string
   email: string
@@ -254,7 +247,6 @@ interface AdminUser {
   }
 }
 
-// Admin Stats interface
 interface AdminStats {
   users: {
     total: number

@@ -364,9 +364,58 @@ function AdminPanel() {
   }
 
   useEffect(() => {
-    fetchStats()
-    fetchUsers()
+    fetchData()
+    checkAdminStatus()
   }, [])
+
+  // Check if admin exists
+  const checkAdminStatus = async () => {
+    try {
+      const res = await fetch("/api/admin/setup")
+      if (res.ok) {
+        const data = await res.json()
+        setHasAdmin(data.hasAdmin)
+      }
+    } catch (error) {
+      console.error("Error checking admin status:", error)
+    }
+  }
+
+  // Handle become admin
+  const handleBecomeAdmin = async () => {
+    setAdminSetupLoading(true)
+    try {
+      const res = await fetch("/api/admin/setup", {
+        method: "POST"
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        toast({ 
+          title: "¡Felicidades!", 
+          description: "Ahora eres administrador. Recarga la página para ver el panel de admin." 
+        })
+        setHasAdmin(true)
+        await updateSession()
+      } else {
+        const errorData = await res.json()
+        toast({ 
+          title: "Error", 
+          description: errorData.error || "No se pudo configurar como admin", 
+          variant: "destructive" 
+        })
+      }
+    } catch (error) {
+      console.error("Error becoming admin:", error)
+      toast({ 
+        title: "Error", 
+        description: "Error al configurar administrador", 
+        variant: "destructive" 
+      })
+    } finally {
+      setAdminSetupLoading(false)
+    }
+  }
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = !search || 
@@ -1867,7 +1916,9 @@ function SavedRecipes({ recipes, onDelete }: { recipes: Recipe[]; onDelete: (id:
 
 // Dashboard Component
 function Dashboard() {
-  const { data: session } = useSession()
+  const { data: session, update: updateSession } = useSession()
+  const [hasAdmin, setHasAdmin] = useState<boolean | null>(null)
+  const [adminSetupLoading, setAdminSetupLoading] = useState(false)
   const [activeRoutine, setActiveRoutine] = useState<Routine | null>(null)
   const [archivedRoutines, setArchivedRoutines] = useState<Routine[]>([])
   const [progressRecords, setProgressRecords] = useState<PhysicalProgress[]>([])
@@ -2496,7 +2547,44 @@ function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+            {/* Main Content */}
+            <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+        {/* Admin Setup Banner */}
+        {hasAdmin === false && session?.user?.role !== "ADMIN" && (
+          <Card className="mb-6 border-purple-200 bg-purple-50 dark:bg-purple-950 dark:border-purple-800">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-purple-900 dark:text-purple-100">¡Sé el primer administrador!</h3>
+                    <p className="text-sm text-purple-700 dark:text-purple-300">No hay administradores en el sistema. Puedes convertirte en admin para gestionar usuarios.</p>
+                  </div>
+                </div>
+                <Button 
+                  onClick={handleBecomeAdmin}
+                  disabled={adminSetupLoading}
+                  className="bg-purple-600 hover:bg-purple-700 whitespace-nowrap"
+                >
+                  {adminSetupLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Configurando...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4 mr-2" />
+                      Hacerme Admin
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className={`grid w-full mb-6 ${session?.user?.role === "ADMIN" ? "grid-cols-5" : "grid-cols-4"}`}>
             <TabsTrigger value="routine" className="flex items-center gap-2">

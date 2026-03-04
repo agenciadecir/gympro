@@ -63,10 +63,10 @@ import {
   Area
 } from "recharts"
 
-// Exercise thumbnail mapping
+// Exercise thumbnail mapping - using muscle group icons
 const muscleGroupIcons: Record<string, string> = {
-  chest: "🏋️",
-  back: "🏋️",
+  chest: "💪",
+  back: "🔙",
   shoulders: "🏋️",
   biceps: "💪",
   triceps: "💪",
@@ -109,16 +109,22 @@ const exerciseDatabase: Record<string, { muscleGroup: string; thumbnail: string 
   "elevacion de talones": { muscleGroup: "calves", thumbnail: "🦶" }
 }
 
+// Helper to get exercise thumbnail
 function getExerciseThumbnail(name: string, muscleGroup?: string): { emoji: string; group: string } {
   const lowerName = name.toLowerCase()
+  
+  // Check database first
   for (const [key, value] of Object.entries(exerciseDatabase)) {
     if (lowerName.includes(key)) {
       return { emoji: value.thumbnail, group: value.muscleGroup }
     }
   }
+  
+  // Use muscle group if provided
   if (muscleGroup && muscleGroupIcons[muscleGroup.toLowerCase()]) {
     return { emoji: muscleGroupIcons[muscleGroup.toLowerCase()], group: muscleGroup }
   }
+  
   return { emoji: muscleGroupIcons.default, group: "general" }
 }
 
@@ -230,6 +236,7 @@ interface Recipe {
   isAiGenerated: boolean
 }
 
+// Admin User interface
 interface AdminUser {
   id: string
   email: string
@@ -247,6 +254,7 @@ interface AdminUser {
   }
 }
 
+// Admin Stats interface
 interface AdminStats {
   users: {
     total: number
@@ -356,58 +364,9 @@ function AdminPanel() {
   }
 
   useEffect(() => {
-    fetchData()
-    checkAdminStatus()
+    fetchStats()
+    fetchUsers()
   }, [])
-
-  // Check if admin exists
-  const checkAdminStatus = async () => {
-    try {
-      const res = await fetch("/api/admin/setup")
-      if (res.ok) {
-        const data = await res.json()
-        setHasAdmin(data.hasAdmin)
-      }
-    } catch (error) {
-      console.error("Error checking admin status:", error)
-    }
-  }
-
-  // Handle become admin
-  const handleBecomeAdmin = async () => {
-    setAdminSetupLoading(true)
-    try {
-      const res = await fetch("/api/admin/setup", {
-        method: "POST"
-      })
-      
-      if (res.ok) {
-        const data = await res.json()
-        toast({ 
-          title: "¡Felicidades!", 
-          description: "Ahora eres administrador. Recarga la página para ver el panel de admin." 
-        })
-        setHasAdmin(true)
-        await updateSession()
-      } else {
-        const errorData = await res.json()
-        toast({ 
-          title: "Error", 
-          description: errorData.error || "No se pudo configurar como admin", 
-          variant: "destructive" 
-        })
-      }
-    } catch (error) {
-      console.error("Error becoming admin:", error)
-      toast({ 
-        title: "Error", 
-        description: "Error al configurar administrador", 
-        variant: "destructive" 
-      })
-    } finally {
-      setAdminSetupLoading(false)
-    }
-  }
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = !search || 
@@ -1909,8 +1868,6 @@ function SavedRecipes({ recipes, onDelete }: { recipes: Recipe[]; onDelete: (id:
 // Dashboard Component
 function Dashboard() {
   const { data: session, update: updateSession } = useSession()
-  const [hasAdmin, setHasAdmin] = useState<boolean | null>(null)
-  const [adminSetupLoading, setAdminSetupLoading] = useState(false)
   const [activeRoutine, setActiveRoutine] = useState<Routine | null>(null)
   const [archivedRoutines, setArchivedRoutines] = useState<Routine[]>([])
   const [progressRecords, setProgressRecords] = useState<PhysicalProgress[]>([])
@@ -1919,6 +1876,8 @@ function Dashboard() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("routine")
+  const [hasAdmin, setHasAdmin] = useState<boolean | null>(null)
+  const [adminSetupLoading, setAdminSetupLoading] = useState(false)
   
   // Dialogs
   const [createRoutineOpen, setCreateRoutineOpen] = useState(false)
@@ -1981,7 +1940,58 @@ function Dashboard() {
 
   useEffect(() => {
     fetchData()
+    checkAdminStatus()
   }, [])
+
+  // Check if admin exists
+  const checkAdminStatus = async () => {
+    try {
+      const res = await fetch("/api/admin/setup")
+      if (res.ok) {
+        const data = await res.json()
+        setHasAdmin(data.hasAdmin)
+      }
+    } catch (error) {
+      console.error("Error checking admin status:", error)
+    }
+  }
+
+  // Handle become admin
+  const handleBecomeAdmin = async () => {
+    setAdminSetupLoading(true)
+    try {
+      const res = await fetch("/api/admin/setup", {
+        method: "POST"
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        toast({ 
+          title: "¡Felicidades!", 
+          description: "Ahora eres administrador. Recarga la página para ver el panel de admin." 
+        })
+        setHasAdmin(true)
+        // Update session to reflect new role
+        await updateSession()
+      } else {
+        const errorData = await res.json()
+        toast({ 
+          title: "Error", 
+          description: errorData.error || "No se pudo configurar como admin", 
+          variant: "destructive" 
+        })
+      }
+    } catch (error) {
+      console.error("Error becoming admin:", error)
+      toast({ 
+        title: "Error", 
+        description: "Error al configurar administrador", 
+        variant: "destructive" 
+      })
+    } finally {
+      setAdminSetupLoading(false)
+    }
+  }
 
   // Create routine
   const handleCreateRoutine = async () => {
@@ -2539,8 +2549,7 @@ function Dashboard() {
       </header>
 
       {/* Main Content */}
-            {/* Main Content */}
-            <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
         {/* Admin Setup Banner */}
         {hasAdmin === false && session?.user?.role !== "ADMIN" && (
           <Card className="mb-6 border-purple-200 bg-purple-50 dark:bg-purple-950 dark:border-purple-800">

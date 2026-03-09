@@ -45,7 +45,10 @@ import {
   UserCheck,
   Search,
   Filter,
-  ShieldCheck
+  ShieldCheck,
+  ArrowUp,
+  ArrowDown,
+  Pencil
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -658,7 +661,7 @@ function AuthPage() {
         <Card className="shadow-xl border-0">
           <CardHeader className="text-center">
             <CardTitle className="text-xl">Bienvenido</CardTitle>
-            <CardDescription>Inicia sesión para continuar</CardDescription>
+            <CardDescription>Inicia sesión o regístrate con Google</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Google Login Button */}
@@ -1765,7 +1768,10 @@ function Dashboard() {
   const [addExerciseOpen, setAddExerciseOpen] = useState(false)
   const [addProgressOpen, setAddProgressOpen] = useState(false)
   const [viewProgressOpen, setViewProgressOpen] = useState(false)
+  const [editProgressOpen, setEditProgressOpen] = useState(false)
+  const [editExerciseOpen, setEditExerciseOpen] = useState(false)
   const [selectedProgress, setSelectedProgress] = useState<PhysicalProgress | null>(null)
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   
   // Form states
   const [newRoutineName, setNewRoutineName] = useState("")
@@ -2117,6 +2123,96 @@ function Dashboard() {
       }
     } catch {
       toast({ title: "Error", description: "No se pudo eliminar", variant: "destructive" })
+    }
+  }
+
+  // Update progress
+  const handleUpdateProgress = async () => {
+    if (!selectedProgress) return
+    
+    try {
+      const res = await fetch(`/api/progress/${selectedProgress.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...selectedProgress,
+          frontPhoto: progressPhotos.front || selectedProgress.frontPhoto,
+          sidePhoto: progressPhotos.side || selectedProgress.sidePhoto,
+          backPhoto: progressPhotos.back || selectedProgress.backPhoto,
+          extraPhoto: progressPhotos.extra || selectedProgress.extraPhoto
+        })
+      })
+
+      if (res.ok) {
+        fetchData()
+        setEditProgressOpen(false)
+        setProgressPhotos({ front: "", side: "", back: "", extra: "" })
+        toast({ title: "Progreso actualizado" })
+      }
+    } catch {
+      toast({ title: "Error", description: "No se pudo actualizar", variant: "destructive" })
+    }
+  }
+
+  // Update exercise
+  const handleUpdateExercise = async () => {
+    if (!selectedExercise) return
+    
+    try {
+      const res = await fetch(`/api/exercises/${selectedExercise.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: selectedExercise.name,
+          sets: selectedExercise.sets,
+          reps: selectedExercise.reps,
+          weight: selectedExercise.weight,
+          notes: selectedExercise.notes
+        })
+      })
+
+      if (res.ok) {
+        fetchData()
+        setEditExerciseOpen(false)
+        setSelectedExercise(null)
+        toast({ title: "Ejercicio actualizado" })
+      }
+    } catch {
+      toast({ title: "Error", description: "No se pudo actualizar el ejercicio", variant: "destructive" })
+    }
+  }
+
+  // Move exercise order
+  const handleMoveExercise = async (exerciseId: string, direction: 'up' | 'down', dayExercises: Exercise[]) => {
+    const currentIndex = dayExercises.findIndex(e => e.id === exerciseId)
+    if (currentIndex === -1) return
+    
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+    if (newIndex < 0 || newIndex >= dayExercises.length) return
+
+    const exercisesToUpdate = [...dayExercises]
+    const temp = exercisesToUpdate[currentIndex].order
+    exercisesToUpdate[currentIndex].order = exercisesToUpdate[newIndex].order
+    exercisesToUpdate[newIndex].order = temp
+
+    try {
+      // Update both exercises
+      await Promise.all([
+        fetch(`/api/exercises/${exercisesToUpdate[currentIndex].id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order: exercisesToUpdate[currentIndex].order })
+        }),
+        fetch(`/api/exercises/${exercisesToUpdate[newIndex].id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order: exercisesToUpdate[newIndex].order })
+        })
+      ])
+      
+      fetchData()
+    } catch {
+      toast({ title: "Error", description: "No se pudo reordenar", variant: "destructive" })
     }
   }
 
@@ -2662,8 +2758,30 @@ function Dashboard() {
                                 return (
                                   <div 
                                     key={exercise.id}
-                                    className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                    className="flex items-center gap-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                                   >
+                                    {/* Reorder Buttons */}
+                                    <div className="flex flex-col gap-0.5">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        disabled={index === 0}
+                                        onClick={() => handleMoveExercise(exercise.id, 'up', day.exercises)}
+                                      >
+                                        <ArrowUp className="w-3 h-3" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        disabled={index === day.exercises.length - 1}
+                                        onClick={() => handleMoveExercise(exercise.id, 'down', day.exercises)}
+                                      >
+                                        <ArrowDown className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                    
                                     {/* Order Number */}
                                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 font-semibold text-sm">
                                       {index + 1}
@@ -2684,6 +2802,19 @@ function Dashboard() {
                                         )}
                                       </div>
                                     </div>
+                                    
+                                    {/* Edit Button */}
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon"
+                                      onClick={() => {
+                                        setSelectedExercise(exercise)
+                                        setEditExerciseOpen(true)
+                                      }}
+                                      className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </Button>
                                     
                                     {/* Delete Button */}
                                     <Button 
@@ -3197,16 +3328,309 @@ function Dashboard() {
                   </div>
                 )}
 
-                <Button 
-                  variant="destructive" 
-                  onClick={() => handleDeleteProgress(selectedProgress.id)}
-                  className="w-full"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Eliminar Registro
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setViewProgressOpen(false)
+                      setEditProgressOpen(true)
+                    }}
+                    className="flex-1"
+                  >
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Editar
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => handleDeleteProgress(selectedProgress.id)}
+                    className="flex-1"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Eliminar
+                  </Button>
+                </div>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Progress Dialog */}
+      <Dialog open={editProgressOpen} onOpenChange={setEditProgressOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {selectedProgress && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Editar Progreso</DialogTitle>
+                <DialogDescription>Modifica los datos del registro</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6 pt-4">
+                {/* Date */}
+                <div className="space-y-2">
+                  <Label>Fecha</Label>
+                  <Input 
+                    type="date"
+                    value={selectedProgress.date ? new Date(selectedProgress.date).toISOString().split('T')[0] : ""}
+                    onChange={(e) => setSelectedProgress({...selectedProgress, date: new Date(e.target.value)})}
+                  />
+                </div>
+
+                {/* Weight */}
+                <div className="space-y-2">
+                  <Label>Peso Corporal (kg)</Label>
+                  <Input 
+                    type="number"
+                    step="0.1"
+                    value={selectedProgress.bodyWeight || ""}
+                    onChange={(e) => setSelectedProgress({...selectedProgress, bodyWeight: e.target.value ? parseFloat(e.target.value) : null})}
+                  />
+                </div>
+
+                <Separator />
+
+                {/* Measurements */}
+                <div>
+                  <h4 className="font-medium mb-4">Medidas Corporales (cm)</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Espalda</Label>
+                      <Input 
+                        type="number"
+                        step="0.1"
+                        value={selectedProgress.backMeasurement || ""}
+                        onChange={(e) => setSelectedProgress({...selectedProgress, backMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Pecho</Label>
+                      <Input 
+                        type="number"
+                        step="0.1"
+                        value={selectedProgress.chestMeasurement || ""}
+                        onChange={(e) => setSelectedProgress({...selectedProgress, chestMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Brazo Izquierdo</Label>
+                      <Input 
+                        type="number"
+                        step="0.1"
+                        value={selectedProgress.leftArmMeasurement || ""}
+                        onChange={(e) => setSelectedProgress({...selectedProgress, leftArmMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Brazo Derecho</Label>
+                      <Input 
+                        type="number"
+                        step="0.1"
+                        value={selectedProgress.rightArmMeasurement || ""}
+                        onChange={(e) => setSelectedProgress({...selectedProgress, rightArmMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Abdomen</Label>
+                      <Input 
+                        type="number"
+                        step="0.1"
+                        value={selectedProgress.abdomenMeasurement || ""}
+                        onChange={(e) => setSelectedProgress({...selectedProgress, abdomenMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Glúteos</Label>
+                      <Input 
+                        type="number"
+                        step="0.1"
+                        value={selectedProgress.glutesMeasurement || ""}
+                        onChange={(e) => setSelectedProgress({...selectedProgress, glutesMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Pierna Izquierda</Label>
+                      <Input 
+                        type="number"
+                        step="0.1"
+                        value={selectedProgress.leftLegMeasurement || ""}
+                        onChange={(e) => setSelectedProgress({...selectedProgress, leftLegMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Pierna Derecha</Label>
+                      <Input 
+                        type="number"
+                        step="0.1"
+                        value={selectedProgress.rightLegMeasurement || ""}
+                        onChange={(e) => setSelectedProgress({...selectedProgress, rightLegMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Photos */}
+                <div>
+                  <h4 className="font-medium mb-4">Fotos de Progreso</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { key: 'front', label: 'Frente', current: selectedProgress.frontPhoto },
+                      { key: 'side', label: 'Lateral', current: selectedProgress.sidePhoto },
+                      { key: 'back', label: 'Espalda', current: selectedProgress.backPhoto },
+                      { key: 'extra', label: 'Extra', current: selectedProgress.extraPhoto }
+                    ].map(photo => (
+                      <div key={photo.key} className="space-y-2">
+                        <Label>{photo.label}</Label>
+                        <div className="relative">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            id={`edit-photo-${photo.key}`}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onloadend = () => {
+                                  setProgressPhotos(prev => ({ ...prev, [photo.key]: reader.result as string }))
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`edit-photo-${photo.key}`}
+                            className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            {progressPhotos[photo.key as keyof typeof progressPhotos] ? (
+                              <img 
+                                src={progressPhotos[photo.key as keyof typeof progressPhotos]} 
+                                alt={photo.label}
+                                className="w-full h-full object-cover rounded-lg"
+                              />
+                            ) : photo.current ? (
+                              <img 
+                                src={photo.current} 
+                                alt={photo.label}
+                                className="w-full h-full object-cover rounded-lg"
+                              />
+                            ) : (
+                              <>
+                                <Camera className="w-6 h-6 text-gray-400" />
+                                <span className="text-xs text-gray-500 mt-1">{photo.label}</span>
+                              </>
+                            )}
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div className="space-y-2">
+                  <Label>Notas</Label>
+                  <Textarea 
+                    value={selectedProgress.notes || ""}
+                    onChange={(e) => setSelectedProgress({...selectedProgress, notes: e.target.value})}
+                    placeholder="Notas adicionales..."
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setEditProgressOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    onClick={handleUpdateProgress}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Guardar Cambios
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Exercise Dialog */}
+      <Dialog open={editExerciseOpen} onOpenChange={setEditExerciseOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Ejercicio</DialogTitle>
+            <DialogDescription>Modifica los datos del ejercicio</DialogDescription>
+          </DialogHeader>
+          {selectedExercise && (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Nombre del ejercicio</Label>
+                <Input 
+                  value={selectedExercise.name}
+                  onChange={(e) => setSelectedExercise({...selectedExercise, name: e.target.value})}
+                  placeholder="Press de banca"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Series</Label>
+                  <Input 
+                    type="number"
+                    value={selectedExercise.sets || ""}
+                    onChange={(e) => setSelectedExercise({...selectedExercise, sets: e.target.value ? parseInt(e.target.value) : null})}
+                    placeholder="4"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Reps</Label>
+                  <Input 
+                    value={selectedExercise.reps || ""}
+                    onChange={(e) => setSelectedExercise({...selectedExercise, reps: e.target.value})}
+                    placeholder="8-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Peso (kg)</Label>
+                  <Input 
+                    type="number"
+                    step="0.5"
+                    value={selectedExercise.weight || ""}
+                    onChange={(e) => setSelectedExercise({...selectedExercise, weight: e.target.value ? parseFloat(e.target.value) : null})}
+                    placeholder="80"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea 
+                  value={selectedExercise.notes || ""}
+                  onChange={(e) => setSelectedExercise({...selectedExercise, notes: e.target.value})}
+                  placeholder="Notas adicionales..."
+                  rows={2}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setEditExerciseOpen(false)}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleUpdateExercise}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Guardar
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

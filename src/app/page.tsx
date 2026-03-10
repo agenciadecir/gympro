@@ -48,7 +48,9 @@ import {
   ShieldCheck,
   ArrowUp,
   ArrowDown,
-  Pencil
+  Pencil,
+  ZoomIn,
+  Maximize2
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -1781,6 +1783,8 @@ function Dashboard() {
   const [newExercise, setNewExercise] = useState({ name: "", sets: "", reps: "", weight: "", notes: "" })
   const [newProgress, setNewProgress] = useState<Partial<PhysicalProgress>>({})
   const [progressPhotos, setProgressPhotos] = useState({ front: "", side: "", back: "", extra: "" })
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null)
 
   // Fetch data
   const fetchData = async () => {
@@ -2179,6 +2183,31 @@ function Dashboard() {
       }
     } catch {
       toast({ title: "Error", description: "No se pudo actualizar el ejercicio", variant: "destructive" })
+    }
+  }
+
+  // Open photo in lightbox
+  const openLightbox = (url: string, title: string) => {
+    setLightboxImage({ url, title })
+    setLightboxOpen(true)
+  }
+
+  // Download photo
+  const downloadPhoto = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+      toast({ title: "Foto descargada" })
+    } catch {
+      toast({ title: "Error", description: "No se pudo descargar la foto", variant: "destructive" })
     }
   }
 
@@ -3302,18 +3331,43 @@ function Dashboard() {
                   <div>
                     <h4 className="font-medium mb-4">Fotos de Progreso</h4>
                     <div className="grid grid-cols-2 gap-4">
-                      {selectedProgress.frontPhoto && (
-                        <img src={selectedProgress.frontPhoto} alt="Frente" className="w-full rounded-lg" />
-                      )}
-                      {selectedProgress.sidePhoto && (
-                        <img src={selectedProgress.sidePhoto} alt="Lateral" className="w-full rounded-lg" />
-                      )}
-                      {selectedProgress.backPhoto && (
-                        <img src={selectedProgress.backPhoto} alt="Espalda" className="w-full rounded-lg" />
-                      )}
-                      {selectedProgress.extraPhoto && (
-                        <img src={selectedProgress.extraPhoto} alt="Extra" className="w-full rounded-lg" />
-                      )}
+                      {[
+                        { key: 'frontPhoto', label: 'Frente', photo: selectedProgress.frontPhoto },
+                        { key: 'sidePhoto', label: 'Lateral', photo: selectedProgress.sidePhoto },
+                        { key: 'backPhoto', label: 'Espalda', photo: selectedProgress.backPhoto },
+                        { key: 'extraPhoto', label: 'Extra', photo: selectedProgress.extraPhoto }
+                      ].filter(p => p.photo).map(p => (
+                        <div key={p.key} className="relative group">
+                          <img 
+                            src={p.photo!} 
+                            alt={p.label} 
+                            className="w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => openLightbox(p.photo!, p.label)}
+                          />
+                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                              size="icon" 
+                              variant="secondary" 
+                              className="h-8 w-8 bg-white/90 hover:bg-white"
+                              onClick={() => openLightbox(p.photo!, p.label)}
+                            >
+                              <Maximize2 className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              size="icon" 
+                              variant="secondary" 
+                              className="h-8 w-8 bg-white/90 hover:bg-white"
+                              onClick={() => {
+                                const date = new Date(selectedProgress.date).toISOString().split('T')[0]
+                                downloadPhoto(p.photo!, `progreso-${date}-${p.label.toLowerCase()}.jpg`)
+                              }}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <p className="text-center text-xs text-gray-500 mt-1">{p.label}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -3628,6 +3682,52 @@ function Dashboard() {
                 >
                   <Save className="w-4 h-4 mr-2" />
                   Guardar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Lightbox */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="max-w-5xl max-h-[95vh] p-0 bg-black/95 border-none">
+          {lightboxImage && (
+            <div className="relative w-full h-full flex flex-col items-center justify-center">
+              {/* Close button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 z-10 text-white hover:bg-white/20"
+                onClick={() => setLightboxOpen(false)}
+              >
+                <X className="w-6 h-6" />
+              </Button>
+
+              {/* Title */}
+              <div className="absolute top-4 left-4 text-white font-medium">
+                {lightboxImage.title}
+              </div>
+
+              {/* Image */}
+              <img
+                src={lightboxImage.url}
+                alt={lightboxImage.title}
+                className="max-w-full max-h-[85vh] object-contain rounded-lg"
+              />
+
+              {/* Download button */}
+              <div className="absolute bottom-4 flex gap-2">
+                <Button
+                  variant="secondary"
+                  className="gap-2"
+                  onClick={() => {
+                    const date = selectedProgress ? new Date(selectedProgress.date).toISOString().split('T')[0] : 'progreso'
+                    downloadPhoto(lightboxImage.url, `${date}-${lightboxImage.title.toLowerCase()}.jpg`)
+                  }}
+                >
+                  <Download className="w-4 h-4" />
+                  Descargar Foto
                 </Button>
               </div>
             </div>

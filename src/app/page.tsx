@@ -286,6 +286,12 @@ function AdminPanel() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
+  const [userProgress, setUserProgress] = useState<PhysicalProgress[]>([])
+  const [progressLoading, setProgressLoading] = useState(false)
+  const [viewUserProgressOpen, setViewUserProgressOpen] = useState(false)
+  const [selectedProgressRecord, setSelectedProgressRecord] = useState<PhysicalProgress | null>(null)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null)
 
   const fetchStats = async () => {
     try {
@@ -315,6 +321,53 @@ function AdminPanel() {
       console.error("Error fetching users:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchUserProgress = async (userId: string) => {
+    setProgressLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/progress`)
+      if (res.ok) {
+        const data = await res.json()
+        setUserProgress(data)
+      } else {
+        setUserProgress([])
+      }
+    } catch (error) {
+      console.error("Error fetching user progress:", error)
+      setUserProgress([])
+    } finally {
+      setProgressLoading(false)
+    }
+  }
+
+  const openUserProgress = (user: AdminUser) => {
+    setSelectedUser(user)
+    setViewUserProgressOpen(true)
+    fetchUserProgress(user.id)
+  }
+
+  const openLightbox = (url: string, title: string) => {
+    setLightboxImage({ url, title })
+    setLightboxOpen(true)
+  }
+
+  const downloadPhoto = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+      toast({ title: "Foto descargada" })
+    } catch {
+      toast({ title: "Error", description: "No se pudo descargar la foto", variant: "destructive" })
     }
   }
 
@@ -582,7 +635,10 @@ function AdminPanel() {
                         {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString('es-ES') : "-"}
                       </td>
                       <td className="p-3">
-                        <div className="flex justify-center gap-1">
+                        <div className="flex justify-center gap-1 flex-wrap">
+                          <Button size="sm" variant="outline" onClick={() => openUserProgress(user)} title="Ver Progreso" className="text-blue-600 hover:text-blue-700">
+                            <Eye className="w-4 h-4" />
+                          </Button>
                           {user.bannedAt ? (
                             <Button size="sm" variant="outline" onClick={() => handleUserAction(user.id, "unban")} title="Desbloquear">
                               <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -623,6 +679,199 @@ function AdminPanel() {
           )}
         </CardContent>
       </Card>
+
+      {/* View User Progress Dialog */}
+      <Dialog open={viewUserProgressOpen} onOpenChange={setViewUserProgressOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-blue-600" />
+              Progreso de {selectedUser?.name || selectedUser?.email}
+            </DialogTitle>
+            <DialogDescription>Registros de progreso del usuario</DialogDescription>
+          </DialogHeader>
+          
+          {progressLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+            </div>
+          ) : userProgress.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Este usuario no tiene registros de progreso</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {userProgress.map((record) => (
+                <Card key={record.id} className="border-0 shadow-sm">
+                  <CardHeader className="py-3 cursor-pointer" onClick={() => setSelectedProgressRecord(selectedProgressRecord?.id === record.id ? null : record)}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
+                          <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium">
+                            {new Date(record.date).toLocaleDateString('es-ES', { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            })}
+                          </h4>
+                          <div className="flex gap-2">
+                            {record.bodyWeight && (
+                              <Badge variant="secondary" className="text-xs">{record.bodyWeight} kg</Badge>
+                            )}
+                            {(record.frontPhoto || record.sidePhoto || record.backPhoto || record.extraPhoto) && (
+                              <Badge variant="outline" className="text-xs">
+                                <Camera className="w-3 h-3 mr-1" />
+                                Fotos
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${selectedProgressRecord?.id === record.id ? 'rotate-90' : ''}`} />
+                    </div>
+                  </CardHeader>
+                  
+                  {selectedProgressRecord?.id === record.id && (
+                    <CardContent className="pt-0 space-y-4">
+                      {/* Weight */}
+                      {record.bodyWeight && (
+                        <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Peso Corporal</p>
+                          <p className="text-2xl font-bold text-emerald-600">{record.bodyWeight} kg</p>
+                        </div>
+                      )}
+
+                      {/* Measurements */}
+                      <div>
+                        <h5 className="font-medium mb-2 text-sm text-gray-500">Medidas (cm)</h5>
+                        <div className="grid grid-cols-4 gap-2">
+                          {[
+                            { label: 'Espalda', value: record.backMeasurement },
+                            { label: 'Pecho', value: record.chestMeasurement },
+                            { label: 'Brazo Izq.', value: record.leftArmMeasurement },
+                            { label: 'Brazo Der.', value: record.rightArmMeasurement },
+                            { label: 'Abdomen', value: record.abdomenMeasurement },
+                            { label: 'Glúteos', value: record.glutesMeasurement },
+                            { label: 'Pierna Izq.', value: record.leftLegMeasurement },
+                            { label: 'Pierna Der.', value: record.rightLegMeasurement },
+                          ].filter(m => m.value).map(m => (
+                            <div key={m.label} className="p-2 bg-gray-50 dark:bg-gray-800 rounded text-center">
+                              <p className="text-xs text-gray-500">{m.label}</p>
+                              <p className="font-semibold">{m.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Photos */}
+                      {(record.frontPhoto || record.sidePhoto || record.backPhoto || record.extraPhoto) && (
+                        <div>
+                          <h5 className="font-medium mb-2 text-sm text-gray-500">Fotos</h5>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {[
+                              { key: 'frontPhoto', label: 'Frente', photo: record.frontPhoto },
+                              { key: 'sidePhoto', label: 'Lateral', photo: record.sidePhoto },
+                              { key: 'backPhoto', label: 'Espalda', photo: record.backPhoto },
+                              { key: 'extraPhoto', label: 'Extra', photo: record.extraPhoto }
+                            ].filter(p => p.photo).map(p => (
+                              <div key={p.key} className="relative group">
+                                <img 
+                                  src={p.photo!} 
+                                  alt={p.label} 
+                                  className="w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => openLightbox(p.photo!, `${selectedUser?.name || 'Usuario'} - ${p.label}`)}
+                                />
+                                <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button 
+                                    size="icon" 
+                                    variant="secondary" 
+                                    className="h-7 w-7 bg-white/90 hover:bg-white"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openLightbox(p.photo!, `${selectedUser?.name || 'Usuario'} - ${p.label}`)
+                                    }}
+                                  >
+                                    <Maximize2 className="w-3 h-3" />
+                                  </Button>
+                                  <Button 
+                                    size="icon" 
+                                    variant="secondary" 
+                                    className="h-7 w-7 bg-white/90 hover:bg-white"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const date = new Date(record.date).toISOString().split('T')[0]
+                                      downloadPhoto(p.photo!, `${selectedUser?.name || 'usuario'}-${date}-${p.label.toLowerCase()}.jpg`)
+                                    }}
+                                  >
+                                    <Download className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                <p className="text-center text-xs text-gray-500 mt-1">{p.label}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Notes */}
+                      {record.notes && (
+                        <div>
+                          <h5 className="font-medium mb-2 text-sm text-gray-500">Notas</h5>
+                          <p className="text-gray-600 dark:text-gray-400 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm">
+                            {record.notes}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox for Admin */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="max-w-5xl max-h-[95vh] p-0 bg-black/95 border-none">
+          {lightboxImage && (
+            <div className="relative w-full h-full flex flex-col items-center justify-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 z-10 text-white hover:bg-white/20"
+                onClick={() => setLightboxOpen(false)}
+              >
+                <X className="w-6 h-6" />
+              </Button>
+              <div className="absolute top-4 left-4 text-white font-medium">
+                {lightboxImage.title}
+              </div>
+              <img
+                src={lightboxImage.url}
+                alt={lightboxImage.title}
+                className="max-w-full max-h-[85vh] object-contain rounded-lg"
+              />
+              <div className="absolute bottom-4 flex gap-2">
+                <Button
+                  variant="secondary"
+                  className="gap-2"
+                  onClick={() => {
+                    downloadPhoto(lightboxImage.url, `${lightboxImage.title}.jpg`)
+                  }}
+                >
+                  <Download className="w-4 h-4" />
+                  Descargar Foto
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -45,12 +45,7 @@ import {
   UserCheck,
   Search,
   Filter,
-  ShieldCheck,
-  ArrowUp,
-  ArrowDown,
-  Pencil,
-  ZoomIn,
-  Maximize2
+  ShieldCheck
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -286,12 +281,6 @@ function AdminPanel() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
-  const [userProgress, setUserProgress] = useState<PhysicalProgress[]>([])
-  const [progressLoading, setProgressLoading] = useState(false)
-  const [viewUserProgressOpen, setViewUserProgressOpen] = useState(false)
-  const [selectedProgressRecord, setSelectedProgressRecord] = useState<PhysicalProgress | null>(null)
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null)
 
   const fetchStats = async () => {
     try {
@@ -321,53 +310,6 @@ function AdminPanel() {
       console.error("Error fetching users:", error)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const fetchUserProgress = async (userId: string) => {
-    setProgressLoading(true)
-    try {
-      const res = await fetch(`/api/admin/users/${userId}/progress`)
-      if (res.ok) {
-        const data = await res.json()
-        setUserProgress(data)
-      } else {
-        setUserProgress([])
-      }
-    } catch (error) {
-      console.error("Error fetching user progress:", error)
-      setUserProgress([])
-    } finally {
-      setProgressLoading(false)
-    }
-  }
-
-  const openUserProgress = (user: AdminUser) => {
-    setSelectedUser(user)
-    setViewUserProgressOpen(true)
-    fetchUserProgress(user.id)
-  }
-
-  const openLightbox = (url: string, title: string) => {
-    setLightboxImage({ url, title })
-    setLightboxOpen(true)
-  }
-
-  const downloadPhoto = async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url)
-      const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(downloadUrl)
-      toast({ title: "Foto descargada" })
-    } catch {
-      toast({ title: "Error", description: "No se pudo descargar la foto", variant: "destructive" })
     }
   }
 
@@ -635,10 +577,7 @@ function AdminPanel() {
                         {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString('es-ES') : "-"}
                       </td>
                       <td className="p-3">
-                        <div className="flex justify-center gap-1 flex-wrap">
-                          <Button size="sm" variant="outline" onClick={() => openUserProgress(user)} title="Ver Progreso" className="text-blue-600 hover:text-blue-700">
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                        <div className="flex justify-center gap-1">
                           {user.bannedAt ? (
                             <Button size="sm" variant="outline" onClick={() => handleUserAction(user.id, "unban")} title="Desbloquear">
                               <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -679,199 +618,6 @@ function AdminPanel() {
           )}
         </CardContent>
       </Card>
-
-      {/* View User Progress Dialog */}
-      <Dialog open={viewUserProgressOpen} onOpenChange={setViewUserProgressOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="w-5 h-5 text-blue-600" />
-              Progreso de {selectedUser?.name || selectedUser?.email}
-            </DialogTitle>
-            <DialogDescription>Registros de progreso del usuario</DialogDescription>
-          </DialogHeader>
-          
-          {progressLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-            </div>
-          ) : userProgress.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Este usuario no tiene registros de progreso</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {userProgress.map((record) => (
-                <Card key={record.id} className="border-0 shadow-sm">
-                  <CardHeader className="py-3 cursor-pointer" onClick={() => setSelectedProgressRecord(selectedProgressRecord?.id === record.id ? null : record)}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
-                          <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">
-                            {new Date(record.date).toLocaleDateString('es-ES', { 
-                              year: 'numeric', 
-                              month: 'long', 
-                              day: 'numeric' 
-                            })}
-                          </h4>
-                          <div className="flex gap-2">
-                            {record.bodyWeight && (
-                              <Badge variant="secondary" className="text-xs">{record.bodyWeight} kg</Badge>
-                            )}
-                            {(record.frontPhoto || record.sidePhoto || record.backPhoto || record.extraPhoto) && (
-                              <Badge variant="outline" className="text-xs">
-                                <Camera className="w-3 h-3 mr-1" />
-                                Fotos
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${selectedProgressRecord?.id === record.id ? 'rotate-90' : ''}`} />
-                    </div>
-                  </CardHeader>
-                  
-                  {selectedProgressRecord?.id === record.id && (
-                    <CardContent className="pt-0 space-y-4">
-                      {/* Weight */}
-                      {record.bodyWeight && (
-                        <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Peso Corporal</p>
-                          <p className="text-2xl font-bold text-emerald-600">{record.bodyWeight} kg</p>
-                        </div>
-                      )}
-
-                      {/* Measurements */}
-                      <div>
-                        <h5 className="font-medium mb-2 text-sm text-gray-500">Medidas (cm)</h5>
-                        <div className="grid grid-cols-4 gap-2">
-                          {[
-                            { label: 'Espalda', value: record.backMeasurement },
-                            { label: 'Pecho', value: record.chestMeasurement },
-                            { label: 'Brazo Izq.', value: record.leftArmMeasurement },
-                            { label: 'Brazo Der.', value: record.rightArmMeasurement },
-                            { label: 'Abdomen', value: record.abdomenMeasurement },
-                            { label: 'Glúteos', value: record.glutesMeasurement },
-                            { label: 'Pierna Izq.', value: record.leftLegMeasurement },
-                            { label: 'Pierna Der.', value: record.rightLegMeasurement },
-                          ].filter(m => m.value).map(m => (
-                            <div key={m.label} className="p-2 bg-gray-50 dark:bg-gray-800 rounded text-center">
-                              <p className="text-xs text-gray-500">{m.label}</p>
-                              <p className="font-semibold">{m.value}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Photos */}
-                      {(record.frontPhoto || record.sidePhoto || record.backPhoto || record.extraPhoto) && (
-                        <div>
-                          <h5 className="font-medium mb-2 text-sm text-gray-500">Fotos</h5>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {[
-                              { key: 'frontPhoto', label: 'Frente', photo: record.frontPhoto },
-                              { key: 'sidePhoto', label: 'Lateral', photo: record.sidePhoto },
-                              { key: 'backPhoto', label: 'Espalda', photo: record.backPhoto },
-                              { key: 'extraPhoto', label: 'Extra', photo: record.extraPhoto }
-                            ].filter(p => p.photo).map(p => (
-                              <div key={p.key} className="relative group">
-                                <img 
-                                  src={p.photo!} 
-                                  alt={p.label} 
-                                  className="w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => openLightbox(p.photo!, `${selectedUser?.name || 'Usuario'} - ${p.label}`)}
-                                />
-                                <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Button 
-                                    size="icon" 
-                                    variant="secondary" 
-                                    className="h-7 w-7 bg-white/90 hover:bg-white"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      openLightbox(p.photo!, `${selectedUser?.name || 'Usuario'} - ${p.label}`)
-                                    }}
-                                  >
-                                    <Maximize2 className="w-3 h-3" />
-                                  </Button>
-                                  <Button 
-                                    size="icon" 
-                                    variant="secondary" 
-                                    className="h-7 w-7 bg-white/90 hover:bg-white"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      const date = new Date(record.date).toISOString().split('T')[0]
-                                      downloadPhoto(p.photo!, `${selectedUser?.name || 'usuario'}-${date}-${p.label.toLowerCase()}.jpg`)
-                                    }}
-                                  >
-                                    <Download className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                                <p className="text-center text-xs text-gray-500 mt-1">{p.label}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Notes */}
-                      {record.notes && (
-                        <div>
-                          <h5 className="font-medium mb-2 text-sm text-gray-500">Notas</h5>
-                          <p className="text-gray-600 dark:text-gray-400 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm">
-                            {record.notes}
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  )}
-                </Card>
-              ))}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Lightbox for Admin */}
-      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-        <DialogContent className="max-w-5xl max-h-[95vh] p-0 bg-black/95 border-none">
-          {lightboxImage && (
-            <div className="relative w-full h-full flex flex-col items-center justify-center">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-2 right-2 z-10 text-white hover:bg-white/20"
-                onClick={() => setLightboxOpen(false)}
-              >
-                <X className="w-6 h-6" />
-              </Button>
-              <div className="absolute top-4 left-4 text-white font-medium">
-                {lightboxImage.title}
-              </div>
-              <img
-                src={lightboxImage.url}
-                alt={lightboxImage.title}
-                className="max-w-full max-h-[85vh] object-contain rounded-lg"
-              />
-              <div className="absolute bottom-4 flex gap-2">
-                <Button
-                  variant="secondary"
-                  className="gap-2"
-                  onClick={() => {
-                    downloadPhoto(lightboxImage.url, `${lightboxImage.title}.jpg`)
-                  }}
-                >
-                  <Download className="w-4 h-4" />
-                  Descargar Foto
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -912,7 +658,7 @@ function AuthPage() {
         <Card className="shadow-xl border-0">
           <CardHeader className="text-center">
             <CardTitle className="text-xl">Bienvenido</CardTitle>
-            <CardDescription>Inicia sesión o regístrate con Google</CardDescription>
+            <CardDescription>Inicia sesión para continuar</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Google Login Button */}
@@ -2019,10 +1765,7 @@ function Dashboard() {
   const [addExerciseOpen, setAddExerciseOpen] = useState(false)
   const [addProgressOpen, setAddProgressOpen] = useState(false)
   const [viewProgressOpen, setViewProgressOpen] = useState(false)
-  const [editProgressOpen, setEditProgressOpen] = useState(false)
-  const [editExerciseOpen, setEditExerciseOpen] = useState(false)
   const [selectedProgress, setSelectedProgress] = useState<PhysicalProgress | null>(null)
-  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   
   // Form states
   const [newRoutineName, setNewRoutineName] = useState("")
@@ -2032,8 +1775,6 @@ function Dashboard() {
   const [newExercise, setNewExercise] = useState({ name: "", sets: "", reps: "", weight: "", notes: "" })
   const [newProgress, setNewProgress] = useState<Partial<PhysicalProgress>>({})
   const [progressPhotos, setProgressPhotos] = useState({ front: "", side: "", back: "", extra: "" })
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null)
 
   // Fetch data
   const fetchData = async () => {
@@ -2379,121 +2120,6 @@ function Dashboard() {
     }
   }
 
-  // Update progress
-  const handleUpdateProgress = async () => {
-    if (!selectedProgress) return
-    
-    try {
-      const res = await fetch(`/api/progress/${selectedProgress.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...selectedProgress,
-          frontPhoto: progressPhotos.front || selectedProgress.frontPhoto,
-          sidePhoto: progressPhotos.side || selectedProgress.sidePhoto,
-          backPhoto: progressPhotos.back || selectedProgress.backPhoto,
-          extraPhoto: progressPhotos.extra || selectedProgress.extraPhoto
-        })
-      })
-
-      if (res.ok) {
-        fetchData()
-        setEditProgressOpen(false)
-        setProgressPhotos({ front: "", side: "", back: "", extra: "" })
-        toast({ title: "Progreso actualizado" })
-      }
-    } catch {
-      toast({ title: "Error", description: "No se pudo actualizar", variant: "destructive" })
-    }
-  }
-
-  // Update exercise
-  const handleUpdateExercise = async () => {
-    if (!selectedExercise) return
-    
-    try {
-      const res = await fetch(`/api/exercises/${selectedExercise.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: selectedExercise.name,
-          sets: selectedExercise.sets,
-          reps: selectedExercise.reps,
-          weight: selectedExercise.weight,
-          notes: selectedExercise.notes
-        })
-      })
-
-      if (res.ok) {
-        fetchData()
-        setEditExerciseOpen(false)
-        setSelectedExercise(null)
-        toast({ title: "Ejercicio actualizado" })
-      }
-    } catch {
-      toast({ title: "Error", description: "No se pudo actualizar el ejercicio", variant: "destructive" })
-    }
-  }
-
-  // Open photo in lightbox
-  const openLightbox = (url: string, title: string) => {
-    setLightboxImage({ url, title })
-    setLightboxOpen(true)
-  }
-
-  // Download photo
-  const downloadPhoto = async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url)
-      const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(downloadUrl)
-      toast({ title: "Foto descargada" })
-    } catch {
-      toast({ title: "Error", description: "No se pudo descargar la foto", variant: "destructive" })
-    }
-  }
-
-  // Move exercise order
-  const handleMoveExercise = async (exerciseId: string, direction: 'up' | 'down', dayExercises: Exercise[]) => {
-    const currentIndex = dayExercises.findIndex(e => e.id === exerciseId)
-    if (currentIndex === -1) return
-    
-    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-    if (newIndex < 0 || newIndex >= dayExercises.length) return
-
-    const exercisesToUpdate = [...dayExercises]
-    const temp = exercisesToUpdate[currentIndex].order
-    exercisesToUpdate[currentIndex].order = exercisesToUpdate[newIndex].order
-    exercisesToUpdate[newIndex].order = temp
-
-    try {
-      // Update both exercises
-      await Promise.all([
-        fetch(`/api/exercises/${exercisesToUpdate[currentIndex].id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ order: exercisesToUpdate[currentIndex].order })
-        }),
-        fetch(`/api/exercises/${exercisesToUpdate[newIndex].id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ order: exercisesToUpdate[newIndex].order })
-        })
-      ])
-      
-      fetchData()
-    } catch {
-      toast({ title: "Error", description: "No se pudo reordenar", variant: "destructive" })
-    }
-  }
-
   // Diet handlers
   const handleCreateDiet = async (name: string, description: string, dietType: string) => {
     try {
@@ -2680,6 +2306,7 @@ function Dashboard() {
                 ${ex.weight ? `${ex.weight} ${ex.weightUnit}` : ''}
               </span>
             </div>
+            ${ex.notes ? `<div style="color: #6b7280; font-size: 12px; padding: 4px 0 8px 20px; font-style: italic;">📝 ${ex.notes}</div>` : ''}
           `).join('') : '<p style="color: #9ca3af;">Sin ejercicios</p>'}
         </div>
       `
@@ -2750,6 +2377,7 @@ function Dashboard() {
           <tr>
             <th>Fecha</th>
             ${metrics.map(m => `<th>${m.label}</th>`).join('')}
+            <th>Notas</th>
           </tr>
         </thead>
         <tbody>
@@ -2757,11 +2385,29 @@ function Dashboard() {
             <tr>
               <td>${new Date(record.date).toLocaleDateString('es-ES')}</td>
               ${metrics.map(m => `<td>${(record as any)[m.key] || '-'}</td>`).join('')}
+              <td style="max-width: 200px; font-size: 11px;">${record.notes || '-'}</td>
             </tr>
           `).join('')}
         </tbody>
       </table>
     `
+
+    // Notes history section
+    const recordsWithNotes = progressRecords.filter(r => r.notes)
+    if (recordsWithNotes.length > 0) {
+      html += `
+        <h2>Historial de Notas</h2>
+        <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          ${recordsWithNotes.slice().reverse().map(record => `
+            <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e5e7eb;">
+              <strong style="color: #10b981;">${new Date(record.date).toLocaleDateString('es-ES')}</strong>
+              <p style="margin: 5px 0 0 0; color: #374151;">${record.notes}</p>
+              ${record.bodyWeight ? `<span style="color: #6b7280; font-size: 12px;">Peso: ${record.bodyWeight} kg</span>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `
+    }
 
     // Individual metric sections
     metrics.forEach(metric => {
@@ -3036,30 +2682,8 @@ function Dashboard() {
                                 return (
                                   <div 
                                     key={exercise.id}
-                                    className="flex items-center gap-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                    className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                                   >
-                                    {/* Reorder Buttons */}
-                                    <div className="flex flex-col gap-0.5">
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon"
-                                        className="h-6 w-6"
-                                        disabled={index === 0}
-                                        onClick={() => handleMoveExercise(exercise.id, 'up', day.exercises)}
-                                      >
-                                        <ArrowUp className="w-3 h-3" />
-                                      </Button>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon"
-                                        className="h-6 w-6"
-                                        disabled={index === day.exercises.length - 1}
-                                        onClick={() => handleMoveExercise(exercise.id, 'down', day.exercises)}
-                                      >
-                                        <ArrowDown className="w-3 h-3" />
-                                      </Button>
-                                    </div>
-                                    
                                     {/* Order Number */}
                                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 font-semibold text-sm">
                                       {index + 1}
@@ -3080,19 +2704,6 @@ function Dashboard() {
                                         )}
                                       </div>
                                     </div>
-                                    
-                                    {/* Edit Button */}
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      onClick={() => {
-                                        setSelectedExercise(exercise)
-                                        setEditExerciseOpen(true)
-                                      }}
-                                      className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </Button>
                                     
                                     {/* Delete Button */}
                                     <Button 
@@ -3580,43 +3191,18 @@ function Dashboard() {
                   <div>
                     <h4 className="font-medium mb-4">Fotos de Progreso</h4>
                     <div className="grid grid-cols-2 gap-4">
-                      {[
-                        { key: 'frontPhoto', label: 'Frente', photo: selectedProgress.frontPhoto },
-                        { key: 'sidePhoto', label: 'Lateral', photo: selectedProgress.sidePhoto },
-                        { key: 'backPhoto', label: 'Espalda', photo: selectedProgress.backPhoto },
-                        { key: 'extraPhoto', label: 'Extra', photo: selectedProgress.extraPhoto }
-                      ].filter(p => p.photo).map(p => (
-                        <div key={p.key} className="relative group">
-                          <img 
-                            src={p.photo!} 
-                            alt={p.label} 
-                            className="w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => openLightbox(p.photo!, p.label)}
-                          />
-                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button 
-                              size="icon" 
-                              variant="secondary" 
-                              className="h-8 w-8 bg-white/90 hover:bg-white"
-                              onClick={() => openLightbox(p.photo!, p.label)}
-                            >
-                              <Maximize2 className="w-4 h-4" />
-                            </Button>
-                            <Button 
-                              size="icon" 
-                              variant="secondary" 
-                              className="h-8 w-8 bg-white/90 hover:bg-white"
-                              onClick={() => {
-                                const date = new Date(selectedProgress.date).toISOString().split('T')[0]
-                                downloadPhoto(p.photo!, `progreso-${date}-${p.label.toLowerCase()}.jpg`)
-                              }}
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <p className="text-center text-xs text-gray-500 mt-1">{p.label}</p>
-                        </div>
-                      ))}
+                      {selectedProgress.frontPhoto && (
+                        <img src={selectedProgress.frontPhoto} alt="Frente" className="w-full rounded-lg" />
+                      )}
+                      {selectedProgress.sidePhoto && (
+                        <img src={selectedProgress.sidePhoto} alt="Lateral" className="w-full rounded-lg" />
+                      )}
+                      {selectedProgress.backPhoto && (
+                        <img src={selectedProgress.backPhoto} alt="Espalda" className="w-full rounded-lg" />
+                      )}
+                      {selectedProgress.extraPhoto && (
+                        <img src={selectedProgress.extraPhoto} alt="Extra" className="w-full rounded-lg" />
+                      )}
                     </div>
                   </div>
                 )}
@@ -3631,355 +3217,16 @@ function Dashboard() {
                   </div>
                 )}
 
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setViewProgressOpen(false)
-                      setEditProgressOpen(true)
-                    }}
-                    className="flex-1"
-                  >
-                    <Pencil className="w-4 h-4 mr-2" />
-                    Editar
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    onClick={() => handleDeleteProgress(selectedProgress.id)}
-                    className="flex-1"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Eliminar
-                  </Button>
-                </div>
+                <Button 
+                  variant="destructive" 
+                  onClick={() => handleDeleteProgress(selectedProgress.id)}
+                  className="w-full"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Eliminar Registro
+                </Button>
               </div>
             </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Progress Dialog */}
-      <Dialog open={editProgressOpen} onOpenChange={setEditProgressOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {selectedProgress && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Editar Progreso</DialogTitle>
-                <DialogDescription>Modifica los datos del registro</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-6 pt-4">
-                {/* Date */}
-                <div className="space-y-2">
-                  <Label>Fecha</Label>
-                  <Input 
-                    type="date"
-                    value={selectedProgress.date ? new Date(selectedProgress.date).toISOString().split('T')[0] : ""}
-                    onChange={(e) => setSelectedProgress({...selectedProgress, date: new Date(e.target.value)})}
-                  />
-                </div>
-
-                {/* Weight */}
-                <div className="space-y-2">
-                  <Label>Peso Corporal (kg)</Label>
-                  <Input 
-                    type="number"
-                    step="0.1"
-                    value={selectedProgress.bodyWeight || ""}
-                    onChange={(e) => setSelectedProgress({...selectedProgress, bodyWeight: e.target.value ? parseFloat(e.target.value) : null})}
-                  />
-                </div>
-
-                <Separator />
-
-                {/* Measurements */}
-                <div>
-                  <h4 className="font-medium mb-4">Medidas Corporales (cm)</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Espalda</Label>
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        value={selectedProgress.backMeasurement || ""}
-                        onChange={(e) => setSelectedProgress({...selectedProgress, backMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Pecho</Label>
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        value={selectedProgress.chestMeasurement || ""}
-                        onChange={(e) => setSelectedProgress({...selectedProgress, chestMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Brazo Izquierdo</Label>
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        value={selectedProgress.leftArmMeasurement || ""}
-                        onChange={(e) => setSelectedProgress({...selectedProgress, leftArmMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Brazo Derecho</Label>
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        value={selectedProgress.rightArmMeasurement || ""}
-                        onChange={(e) => setSelectedProgress({...selectedProgress, rightArmMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Abdomen</Label>
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        value={selectedProgress.abdomenMeasurement || ""}
-                        onChange={(e) => setSelectedProgress({...selectedProgress, abdomenMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Glúteos</Label>
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        value={selectedProgress.glutesMeasurement || ""}
-                        onChange={(e) => setSelectedProgress({...selectedProgress, glutesMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Pierna Izquierda</Label>
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        value={selectedProgress.leftLegMeasurement || ""}
-                        onChange={(e) => setSelectedProgress({...selectedProgress, leftLegMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Pierna Derecha</Label>
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        value={selectedProgress.rightLegMeasurement || ""}
-                        onChange={(e) => setSelectedProgress({...selectedProgress, rightLegMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Photos */}
-                <div>
-                  <h4 className="font-medium mb-4">Fotos de Progreso</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                      { key: 'front', label: 'Frente', current: selectedProgress.frontPhoto },
-                      { key: 'side', label: 'Lateral', current: selectedProgress.sidePhoto },
-                      { key: 'back', label: 'Espalda', current: selectedProgress.backPhoto },
-                      { key: 'extra', label: 'Extra', current: selectedProgress.extraPhoto }
-                    ].map(photo => (
-                      <div key={photo.key} className="space-y-2">
-                        <Label>{photo.label}</Label>
-                        <div className="relative">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            id={`edit-photo-${photo.key}`}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              if (file) {
-                                const reader = new FileReader()
-                                reader.onloadend = () => {
-                                  setProgressPhotos(prev => ({ ...prev, [photo.key]: reader.result as string }))
-                                }
-                                reader.readAsDataURL(file)
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor={`edit-photo-${photo.key}`}
-                            className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                          >
-                            {progressPhotos[photo.key as keyof typeof progressPhotos] ? (
-                              <img 
-                                src={progressPhotos[photo.key as keyof typeof progressPhotos]} 
-                                alt={photo.label}
-                                className="w-full h-full object-cover rounded-lg"
-                              />
-                            ) : photo.current ? (
-                              <img 
-                                src={photo.current} 
-                                alt={photo.label}
-                                className="w-full h-full object-cover rounded-lg"
-                              />
-                            ) : (
-                              <>
-                                <Camera className="w-6 h-6 text-gray-400" />
-                                <span className="text-xs text-gray-500 mt-1">{photo.label}</span>
-                              </>
-                            )}
-                          </label>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Notes */}
-                <div className="space-y-2">
-                  <Label>Notas</Label>
-                  <Textarea 
-                    value={selectedProgress.notes || ""}
-                    onChange={(e) => setSelectedProgress({...selectedProgress, notes: e.target.value})}
-                    placeholder="Notas adicionales..."
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setEditProgressOpen(false)}
-                    className="flex-1"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button 
-                    onClick={handleUpdateProgress}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Guardar Cambios
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Exercise Dialog */}
-      <Dialog open={editExerciseOpen} onOpenChange={setEditExerciseOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Ejercicio</DialogTitle>
-            <DialogDescription>Modifica los datos del ejercicio</DialogDescription>
-          </DialogHeader>
-          {selectedExercise && (
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>Nombre del ejercicio</Label>
-                <Input 
-                  value={selectedExercise.name}
-                  onChange={(e) => setSelectedExercise({...selectedExercise, name: e.target.value})}
-                  placeholder="Press de banca"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Series</Label>
-                  <Input 
-                    type="number"
-                    value={selectedExercise.sets || ""}
-                    onChange={(e) => setSelectedExercise({...selectedExercise, sets: e.target.value ? parseInt(e.target.value) : null})}
-                    placeholder="4"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Reps</Label>
-                  <Input 
-                    value={selectedExercise.reps || ""}
-                    onChange={(e) => setSelectedExercise({...selectedExercise, reps: e.target.value})}
-                    placeholder="8-12"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Peso (kg)</Label>
-                  <Input 
-                    type="number"
-                    step="0.5"
-                    value={selectedExercise.weight || ""}
-                    onChange={(e) => setSelectedExercise({...selectedExercise, weight: e.target.value ? parseFloat(e.target.value) : null})}
-                    placeholder="80"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Notas</Label>
-                <Textarea 
-                  value={selectedExercise.notes || ""}
-                  onChange={(e) => setSelectedExercise({...selectedExercise, notes: e.target.value})}
-                  placeholder="Notas adicionales..."
-                  rows={2}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setEditExerciseOpen(false)}
-                  className="flex-1"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={handleUpdateExercise}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Guardar
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Photo Lightbox */}
-      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-        <DialogContent className="max-w-5xl max-h-[95vh] p-0 bg-black/95 border-none">
-          {lightboxImage && (
-            <div className="relative w-full h-full flex flex-col items-center justify-center">
-              {/* Close button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-2 right-2 z-10 text-white hover:bg-white/20"
-                onClick={() => setLightboxOpen(false)}
-              >
-                <X className="w-6 h-6" />
-              </Button>
-
-              {/* Title */}
-              <div className="absolute top-4 left-4 text-white font-medium">
-                {lightboxImage.title}
-              </div>
-
-              {/* Image */}
-              <img
-                src={lightboxImage.url}
-                alt={lightboxImage.title}
-                className="max-w-full max-h-[85vh] object-contain rounded-lg"
-              />
-
-              {/* Download button */}
-              <div className="absolute bottom-4 flex gap-2">
-                <Button
-                  variant="secondary"
-                  className="gap-2"
-                  onClick={() => {
-                    const date = selectedProgress ? new Date(selectedProgress.date).toISOString().split('T')[0] : 'progreso'
-                    downloadPhoto(lightboxImage.url, `${date}-${lightboxImage.title.toLowerCase()}.jpg`)
-                  }}
-                >
-                  <Download className="w-4 h-4" />
-                  Descargar Foto
-                </Button>
-              </div>
-            </div>
           )}
         </DialogContent>
       </Dialog>

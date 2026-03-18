@@ -282,6 +282,14 @@ function AdminPanel() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
 
+  // User data states
+  const [userDataLoading, setUserDataLoading] = useState(false)
+  const [userRoutines, setUserRoutines] = useState<Routine[]>([])
+  const [userProgress, setUserProgress] = useState<PhysicalProgress[]>([])
+  const [userDiets, setUserDiets] = useState<Diet[]>([])
+  const [userDataTab, setUserDataTab] = useState<"routines" | "progress" | "diets">("routines")
+  const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null)
+
   const fetchStats = async () => {
     try {
       const res = await fetch("/api/admin/stats")
@@ -361,6 +369,41 @@ function AdminPanel() {
   const refreshData = () => {
     fetchStats()
     fetchUsers()
+  }
+
+  // Fetch user's data (routines, progress, diets)
+  const fetchUserData = async (userId: string) => {
+    setUserDataLoading(true)
+    try {
+      const [routinesRes, progressRes, dietsRes] = await Promise.all([
+        fetch(`/api/admin/users/${userId}/routines`),
+        fetch(`/api/admin/users/${userId}/progress`),
+        fetch(`/api/admin/users/${userId}/diets`)
+      ])
+
+      if (routinesRes.ok) {
+        const data = await routinesRes.json()
+        setUserRoutines(data)
+      }
+      if (progressRes.ok) {
+        const data = await progressRes.json()
+        setUserProgress(data)
+      }
+      if (dietsRes.ok) {
+        const data = await dietsRes.json()
+        setUserDiets(data)
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error)
+    } finally {
+      setUserDataLoading(false)
+    }
+  }
+
+  const handleViewUser = (user: AdminUser) => {
+    setSelectedUser(user)
+    setUserDataTab("routines")
+    fetchUserData(user.id)
   }
 
   useEffect(() => {
@@ -608,6 +651,9 @@ function AdminPanel() {
                           <Button size="sm" variant="outline" onClick={() => handleDeleteUser(user.id)} title="Eliminar" className="text-red-600 hover:text-red-700">
                             <Trash2 className="w-4 h-4" />
                           </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleViewUser(user)} title="Ver datos" className="text-emerald-600 hover:text-emerald-700">
+                            <Eye className="w-4 h-4" />
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -618,6 +664,348 @@ function AdminPanel() {
           )}
         </CardContent>
       </Card>
+
+      {/* User Data Dialog */}
+      <Dialog open={!!selectedUser && !lightboxPhoto} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Datos de: {selectedUser?.name || selectedUser?.email}
+            </DialogTitle>
+            <DialogDescription>
+              Rutinas, progresos y dietas del usuario
+            </DialogDescription>
+          </DialogHeader>
+
+          {userDataLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Tabs */}
+              <div className="flex gap-2 border-b pb-2">
+                <Button
+                  variant={userDataTab === "routines" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setUserDataTab("routines")}
+                  className={userDataTab === "routines" ? "bg-emerald-600" : ""}
+                >
+                  <Dumbbell className="w-4 h-4 mr-2" />
+                  Rutinas ({userRoutines.length})
+                </Button>
+                <Button
+                  variant={userDataTab === "progress" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setUserDataTab("progress")}
+                  className={userDataTab === "progress" ? "bg-emerald-600" : ""}
+                >
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Progresos ({userProgress.length})
+                </Button>
+                <Button
+                  variant={userDataTab === "diets" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setUserDataTab("diets")}
+                  className={userDataTab === "diets" ? "bg-emerald-600" : ""}
+                >
+                  <Utensils className="w-4 h-4 mr-2" />
+                  Dietas ({userDiets.length})
+                </Button>
+              </div>
+
+              {/* Routines Tab */}
+              {userDataTab === "routines" && (
+                <div className="space-y-4">
+                  {userRoutines.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Dumbbell className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Este usuario no tiene rutinas</p>
+                    </div>
+                  ) : (
+                    userRoutines.map((routine) => (
+                      <Card key={routine.id} className="border shadow-sm">
+                        <CardHeader className="pb-2">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="text-lg">{routine.name}</CardTitle>
+                              {routine.description && (
+                                <p className="text-sm text-gray-500 mt-1">{routine.description}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              {routine.isActive && <Badge className="bg-emerald-600">Activa</Badge>}
+                              {routine.isArchived && <Badge variant="secondary">Archivada</Badge>}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {routine.days?.map((day: any) => (
+                              <div key={day.id} className="border rounded-lg p-3">
+                                <h4 className="font-medium text-sm mb-2">{day.name}</h4>
+                                {day.exercises?.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {day.exercises.map((ex: any, idx: number) => (
+                                      <div key={ex.id} className="text-sm text-gray-600 flex justify-between">
+                                        <span>{idx + 1}. {ex.name}</span>
+                                        <span className="text-gray-400">
+                                          {ex.sets && `${ex.sets} series`}
+                                          {ex.reps && ` × ${ex.reps}`}
+                                          {ex.weight && ` @ ${ex.weight}kg`}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-gray-400">Sin ejercicios</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Progress Tab */}
+              {userDataTab === "progress" && (
+                <div className="space-y-4">
+                  {userProgress.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Este usuario no tiene registros de progreso</p>
+                    </div>
+                  ) : (
+                    userProgress.map((record) => (
+                      <Card key={record.id} className="border shadow-sm">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg">
+                            {new Date(record.date).toLocaleDateString('es-ES', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                            {record.bodyWeight && (
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded text-center">
+                                <p className="text-xs text-gray-500">Peso</p>
+                                <p className="font-semibold">{record.bodyWeight} kg</p>
+                              </div>
+                            )}
+                            {record.chestMeasurement && (
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded text-center">
+                                <p className="text-xs text-gray-500">Pecho</p>
+                                <p className="font-semibold">{record.chestMeasurement} cm</p>
+                              </div>
+                            )}
+                            {record.leftArmMeasurement && (
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded text-center">
+                                <p className="text-xs text-gray-500">Brazo Izq</p>
+                                <p className="font-semibold">{record.leftArmMeasurement} cm</p>
+                              </div>
+                            )}
+                            {record.rightArmMeasurement && (
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded text-center">
+                                <p className="text-xs text-gray-500">Brazo Der</p>
+                                <p className="font-semibold">{record.rightArmMeasurement} cm</p>
+                              </div>
+                            )}
+                            {record.abdomenMeasurement && (
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded text-center">
+                                <p className="text-xs text-gray-500">Abdomen</p>
+                                <p className="font-semibold">{record.abdomenMeasurement} cm</p>
+                              </div>
+                            )}
+                            {record.glutesMeasurement && (
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded text-center">
+                                <p className="text-xs text-gray-500">Glúteos</p>
+                                <p className="font-semibold">{record.glutesMeasurement} cm</p>
+                              </div>
+                            )}
+                            {record.leftLegMeasurement && (
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded text-center">
+                                <p className="text-xs text-gray-500">Pierna Izq</p>
+                                <p className="font-semibold">{record.leftLegMeasurement} cm</p>
+                              </div>
+                            )}
+                            {record.rightLegMeasurement && (
+                              <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded text-center">
+                                <p className="text-xs text-gray-500">Pierna Der</p>
+                                <p className="font-semibold">{record.rightLegMeasurement} cm</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {record.notes && (
+                            <div className="mb-4 p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                              <p className="text-xs text-gray-500 mb-1">Notas:</p>
+                              <p className="text-sm">{record.notes}</p>
+                            </div>
+                          )}
+
+                          {/* Photos */}
+                          {(record.frontPhoto || record.sidePhoto || record.backPhoto || record.extraPhoto) && (
+                            <div className="grid grid-cols-4 gap-2">
+                              {record.frontPhoto && (
+                                <img
+                                  src={record.frontPhoto}
+                                  alt="Frente"
+                                  className="w-full h-24 object-cover rounded cursor-pointer hover:opacity-80"
+                                  onClick={() => setLightboxPhoto(record.frontPhoto)}
+                                />
+                              )}
+                              {record.sidePhoto && (
+                                <img
+                                  src={record.sidePhoto}
+                                  alt="Lateral"
+                                  className="w-full h-24 object-cover rounded cursor-pointer hover:opacity-80"
+                                  onClick={() => setLightboxPhoto(record.sidePhoto)}
+                                />
+                              )}
+                              {record.backPhoto && (
+                                <img
+                                  src={record.backPhoto}
+                                  alt="Espalda"
+                                  className="w-full h-24 object-cover rounded cursor-pointer hover:opacity-80"
+                                  onClick={() => setLightboxPhoto(record.backPhoto)}
+                                />
+                              )}
+                              {record.extraPhoto && (
+                                <img
+                                  src={record.extraPhoto}
+                                  alt="Extra"
+                                  className="w-full h-24 object-cover rounded cursor-pointer hover:opacity-80"
+                                  onClick={() => setLightboxPhoto(record.extraPhoto)}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Diets Tab */}
+              {userDataTab === "diets" && (
+                <div className="space-y-4">
+                  {userDiets.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Utensils className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Este usuario no tiene dietas</p>
+                    </div>
+                  ) : (
+                    userDiets.map((diet) => (
+                      <Card key={diet.id} className="border shadow-sm">
+                        <CardHeader className="pb-2">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="text-lg">{diet.name}</CardTitle>
+                              {diet.description && (
+                                <p className="text-sm text-gray-500 mt-1">{diet.description}</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              {diet.isActive && <Badge className="bg-emerald-600">Activa</Badge>}
+                              {diet.isArchived && <Badge variant="secondary">Archivada</Badge>}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-4 gap-3 mb-4">
+                            {diet.totalCalories && (
+                              <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded text-center">
+                                <p className="text-xs text-blue-600">Calorías</p>
+                                <p className="font-semibold">{diet.totalCalories}</p>
+                              </div>
+                            )}
+                            {diet.totalProtein && (
+                              <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded text-center">
+                                <p className="text-xs text-red-600">Proteína</p>
+                                <p className="font-semibold">{diet.totalProtein}g</p>
+                              </div>
+                            )}
+                            {diet.totalCarbs && (
+                              <div className="bg-amber-50 dark:bg-amber-900/20 p-2 rounded text-center">
+                                <p className="text-xs text-amber-600">Carbos</p>
+                                <p className="font-semibold">{diet.totalCarbs}g</p>
+                              </div>
+                            )}
+                            {diet.totalFat && (
+                              <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded text-center">
+                                <p className="text-xs text-purple-600">Grasas</p>
+                                <p className="font-semibold">{diet.totalFat}g</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {diet.meals?.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="font-medium text-sm">Comidas:</h4>
+                              {diet.meals.map((meal: any) => (
+                                <div key={meal.id} className="text-sm p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                                  <span className="font-medium">{mealTypeLabels[meal.mealType] || meal.mealType}</span>
+                                  {meal.name && <span className="text-gray-500"> - {meal.name}</span>}
+                                  {meal.calories && <span className="text-gray-400 ml-2">({meal.calories} kcal)</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox for photos */}
+      {lightboxPhoto && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-4 right-4 text-white hover:bg-white/20"
+            onClick={() => setLightboxPhoto(null)}
+          >
+            <X className="w-6 h-6" />
+          </Button>
+          <img
+            src={lightboxPhoto}
+            alt="Foto ampliada"
+            className="max-w-full max-h-full object-contain"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="absolute bottom-4 right-4 bg-white/10 border-white/20 text-white hover:bg-white/20"
+            onClick={(e) => {
+              e.stopPropagation()
+              const link = document.createElement('a')
+              link.href = lightboxPhoto
+              link.download = `foto-${new Date().toISOString().slice(0, 10)}.jpg`
+              link.click()
+            }}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Descargar
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

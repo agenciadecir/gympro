@@ -1772,7 +1772,8 @@ function Dashboard() {
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null)
   const [editProgressOpen, setEditProgressOpen] = useState(false)
   const [editingProgress, setEditingProgress] = useState<PhysicalProgress | null>(null)
-  
+  const [editProgressPhotos, setEditProgressPhotos] = useState({ front: "", side: "", back: "", extra: "" })
+
   // Form states
   const [newRoutineName, setNewRoutineName] = useState("")
   const [newRoutineDescription, setNewRoutineDescription] = useState("")
@@ -2010,7 +2011,11 @@ function Dashboard() {
           glutesMeasurement: editingProgress.glutesMeasurement,
           rightLegMeasurement: editingProgress.rightLegMeasurement,
           leftLegMeasurement: editingProgress.leftLegMeasurement,
-          notes: editingProgress.notes
+          notes: editingProgress.notes,
+          frontPhoto: editProgressPhotos.front || editingProgress.frontPhoto,
+          sidePhoto: editProgressPhotos.side || editingProgress.sidePhoto,
+          backPhoto: editProgressPhotos.back || editingProgress.backPhoto,
+          extraPhoto: editProgressPhotos.extra || editingProgress.extraPhoto
         })
       })
 
@@ -2018,6 +2023,7 @@ function Dashboard() {
         fetchData()
         setEditProgressOpen(false)
         setEditingProgress(null)
+        setEditProgressPhotos({ front: "", side: "", back: "", extra: "" })
         toast({ title: "Progreso actualizado" })
       }
     } catch {
@@ -2143,6 +2149,15 @@ function Dashboard() {
     const reader = new FileReader()
     reader.onloadend = () => {
       setProgressPhotos(prev => ({ ...prev, [type]: reader.result as string }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Handle photo upload for edit mode
+  const handleEditPhotoUpload = (type: 'front' | 'side' | 'back' | 'extra', file: File) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setEditProgressPhotos(prev => ({ ...prev, [type]: reader.result as string }))
     }
     reader.readAsDataURL(file)
   }
@@ -3199,6 +3214,12 @@ function Dashboard() {
                               onClick={(e) => {
                                 e.stopPropagation()
                                 setEditingProgress(record)
+                                setEditProgressPhotos({
+                                  front: record.frontPhoto || "",
+                                  side: record.sidePhoto || "",
+                                  back: record.backPhoto || "",
+                                  extra: record.extraPhoto || ""
+                                })
                                 setEditProgressOpen(true)
                               }}
                               className="text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"
@@ -3497,6 +3518,55 @@ function Dashboard() {
                   </div>
                 </div>
               </div>
+
+              <Separator />
+
+              {/* Photos */}
+              <div>
+                <h4 className="font-medium mb-4">Fotos de Progreso</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { key: 'front', label: 'Frente' },
+                    { key: 'side', label: 'Lateral' },
+                    { key: 'back', label: 'Espalda' },
+                    { key: 'extra', label: 'Extra' }
+                  ].map(photo => (
+                    <div key={photo.key} className="space-y-2">
+                      <Label>{photo.label}</Label>
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          id={`edit-photo-${photo.key}`}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleEditPhotoUpload(photo.key as 'front' | 'side' | 'back' | 'extra', file)
+                          }}
+                        />
+                        <label
+                          htmlFor={`edit-photo-${photo.key}`}
+                          className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          {editProgressPhotos[photo.key as keyof typeof editProgressPhotos] ? (
+                            <img
+                              src={editProgressPhotos[photo.key as keyof typeof editProgressPhotos]}
+                              alt={photo.label}
+                              className="w-full h-full object-cover rounded-lg"
+                            />
+                          ) : (
+                            <>
+                              <Camera className="w-6 h-6 text-gray-400" />
+                              <span className="text-xs text-gray-500 mt-1">{photo.label}</span>
+                            </>
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label>Notas</Label>
                 <Textarea

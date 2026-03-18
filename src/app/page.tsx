@@ -13,6 +13,23 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { 
   Dumbbell, 
   LogOut, 
@@ -45,7 +62,8 @@ import {
   UserCheck,
   Search,
   Filter,
-  ShieldCheck
+  ShieldCheck,
+  GripVertical
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -158,6 +176,92 @@ interface Routine {
   aiAnalysis?: string | null
   days: WorkoutDay[]
   createdAt: string
+}
+
+// Sortable Exercise Item Component
+interface SortableExerciseItemProps {
+  exercise: Exercise
+  index: number
+  onEdit: (exercise: Exercise) => void
+  onDelete: (id: string) => void
+}
+
+function SortableExerciseItem({ exercise, index, onEdit, onDelete }: SortableExerciseItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: exercise.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${isDragging ? 'shadow-lg ring-2 ring-emerald-500' : ''}`}
+    >
+      {/* Drag Handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+      >
+        <GripVertical className="w-5 h-5" />
+      </button>
+
+      {/* Order Number */}
+      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 font-semibold text-sm">
+        {index + 1}
+      </div>
+
+      {/* Exercise Info */}
+      <div className="flex-1">
+        <h4 className="font-medium text-gray-900 dark:text-white">{exercise.name}</h4>
+        <div className="flex flex-wrap gap-2 mt-1">
+          {exercise.sets && (
+            <Badge variant="outline">{exercise.sets} series</Badge>
+          )}
+          {exercise.reps && (
+            <Badge variant="outline">{exercise.reps} reps</Badge>
+          )}
+          {exercise.weight && (
+            <Badge variant="outline">{exercise.weight} {exercise.weightUnit}</Badge>
+          )}
+        </div>
+        {exercise.notes && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">{exercise.notes}</p>
+        )}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onEdit(exercise)}
+          className="text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"
+        >
+          <Edit className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(exercise.id)}
+          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 interface MealItem {
@@ -2353,6 +2457,52 @@ function Dashboard() {
     }
   }
 
+  // Reorder exercises with drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleDragEnd = async (event: DragEndEvent, dayId: string) => {
+    const { active, over } = event
+
+    if (!over || active.id === over.id) return
+
+    // Find the day and get its exercises
+    const day = activeRoutine?.days.find(d => d.id === dayId)
+    if (!day) return
+
+    const oldIndex = day.exercises.findIndex(e => e.id === active.id)
+    const newIndex = day.exercises.findIndex(e => e.id === over.id)
+
+    if (oldIndex === -1 || newIndex === -1) return
+
+    // Create new order
+    const reorderedExercises = arrayMove(day.exercises, oldIndex, newIndex)
+
+    // Update order in backend
+    try {
+      const updates = reorderedExercises.map((ex, index) => ({
+        id: ex.id,
+        order: index
+      }))
+
+      const res = await fetch("/api/exercises/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exercises: updates })
+      })
+
+      if (res.ok) {
+        fetchData()
+      }
+    } catch {
+      toast({ title: "Error", description: "No se pudo reordenar", variant: "destructive" })
+    }
+  }
+
   // Update exercise
   const handleUpdateExercise = async () => {
     if (!editingExercise) return
@@ -3157,63 +3307,31 @@ function Dashboard() {
                               <p className="text-sm">Agrega ejercicios usando el botón superior</p>
                             </div>
                           ) : (
-                            <div className="space-y-3">
-                              {day.exercises.map((exercise, index) => {
-                                return (
-                                  <div 
-                                    key={exercise.id}
-                                    className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                  >
-                                    {/* Order Number */}
-                                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 font-semibold text-sm">
-                                      {index + 1}
-                                    </div>
-                                    
-                                    {/* Exercise Info */}
-                                    <div className="flex-1">
-                                      <h4 className="font-medium text-gray-900 dark:text-white">{exercise.name}</h4>
-                                      <div className="flex flex-wrap gap-2 mt-1">
-                                        {exercise.sets && (
-                                          <Badge variant="outline">{exercise.sets} series</Badge>
-                                        )}
-                                        {exercise.reps && (
-                                          <Badge variant="outline">{exercise.reps} reps</Badge>
-                                        )}
-                                        {exercise.weight && (
-                                          <Badge variant="outline">{exercise.weight} {exercise.weightUnit}</Badge>
-                                        )}
-                                      </div>
-                                      {exercise.notes && (
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">{exercise.notes}</p>
-                                      )}
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => {
-                                          setEditingExercise(exercise)
-                                          setEditExerciseOpen(true)
-                                        }}
-                                        className="text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"
-                                      >
-                                        <Edit className="w-4 h-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleDeleteExercise(exercise.id)}
-                                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
+                            <DndContext
+                              sensors={sensors}
+                              collisionDetection={closestCenter}
+                              onDragEnd={(event) => handleDragEnd(event, day.id)}
+                            >
+                              <SortableContext
+                                items={day.exercises.map(e => e.id)}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                <div className="space-y-3">
+                                  {day.exercises.map((exercise, index) => (
+                                    <SortableExerciseItem
+                                      key={exercise.id}
+                                      exercise={exercise}
+                                      index={index}
+                                      onEdit={(ex) => {
+                                        setEditingExercise(ex)
+                                        setEditExerciseOpen(true)
+                                      }}
+                                      onDelete={handleDeleteExercise}
+                                    />
+                                  ))}
+                                </div>
+                              </SortableContext>
+                            </DndContext>
                           )}
                         </CardContent>
                       </Card>

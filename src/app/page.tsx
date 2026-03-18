@@ -1766,6 +1766,12 @@ function Dashboard() {
   const [addProgressOpen, setAddProgressOpen] = useState(false)
   const [viewProgressOpen, setViewProgressOpen] = useState(false)
   const [selectedProgress, setSelectedProgress] = useState<PhysicalProgress | null>(null)
+
+  // Edit states
+  const [editExerciseOpen, setEditExerciseOpen] = useState(false)
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null)
+  const [editProgressOpen, setEditProgressOpen] = useState(false)
+  const [editingProgress, setEditingProgress] = useState<PhysicalProgress | null>(null)
   
   // Form states
   const [newRoutineName, setNewRoutineName] = useState("")
@@ -1929,7 +1935,8 @@ function Dashboard() {
           name: newExercise.name,
           sets: newExercise.sets ? parseInt(newExercise.sets) : null,
           reps: newExercise.reps || null,
-          weight: newExercise.weight ? parseFloat(newExercise.weight) : null
+          weight: newExercise.weight ? parseFloat(newExercise.weight) : null,
+          notes: newExercise.notes || null
         })
       })
 
@@ -1954,6 +1961,67 @@ function Dashboard() {
       }
     } catch {
       toast({ title: "Error", description: "No se pudo eliminar", variant: "destructive" })
+    }
+  }
+
+  // Update exercise
+  const handleUpdateExercise = async () => {
+    if (!editingExercise) return
+
+    try {
+      const res = await fetch(`/api/exercises/${editingExercise.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingExercise.name,
+          sets: editingExercise.sets,
+          reps: editingExercise.reps,
+          weight: editingExercise.weight,
+          notes: editingExercise.notes
+        })
+      })
+
+      if (res.ok) {
+        fetchData()
+        setEditExerciseOpen(false)
+        setEditingExercise(null)
+        toast({ title: "Ejercicio actualizado" })
+      }
+    } catch {
+      toast({ title: "Error", description: "No se pudo actualizar", variant: "destructive" })
+    }
+  }
+
+  // Update progress
+  const handleUpdateProgress = async () => {
+    if (!editingProgress) return
+
+    try {
+      const res = await fetch(`/api/progress/${editingProgress.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bodyWeight: editingProgress.bodyWeight,
+          backMeasurement: editingProgress.backMeasurement,
+          chestMeasurement: editingProgress.chestMeasurement,
+          leftArmMeasurement: editingProgress.leftArmMeasurement,
+          rightArmMeasurement: editingProgress.rightArmMeasurement,
+          abdomenMeasurement: editingProgress.abdomenMeasurement,
+          glutesMeasurement: editingProgress.glutesMeasurement,
+          rightLegMeasurement: editingProgress.rightLegMeasurement,
+          leftLegMeasurement: editingProgress.leftLegMeasurement,
+          notes: editingProgress.notes
+        })
+      })
+
+      if (res.ok) {
+        fetchData()
+        setEditProgressOpen(false)
+        setEditingProgress(null)
+        toast({ title: "Progreso actualizado" })
+      }
+    } catch {
+      toast({ title: "Error", description: "No se pudo actualizar", variant: "destructive" })
     }
   }
 
@@ -2619,6 +2687,15 @@ function Dashboard() {
                                 />
                               </div>
                             </div>
+                            <div className="space-y-2">
+                              <Label>Notas (opcional)</Label>
+                              <Textarea 
+                                value={newExercise.notes}
+                                onChange={(e) => setNewExercise({...newExercise, notes: e.target.value})}
+                                placeholder="Notas sobre el ejercicio..."
+                                rows={2}
+                              />
+                            </div>
                             <Button onClick={handleAddExercise} className="w-full bg-emerald-600 hover:bg-emerald-700">
                               Agregar Ejercicio
                             </Button>
@@ -2703,17 +2780,33 @@ function Dashboard() {
                                           <Badge variant="outline">{exercise.weight} {exercise.weightUnit}</Badge>
                                         )}
                                       </div>
+                                      {exercise.notes && (
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">{exercise.notes}</p>
+                                      )}
                                     </div>
-                                    
-                                    {/* Delete Button */}
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      onClick={() => handleDeleteExercise(exercise.id)}
-                                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                          setEditingExercise(exercise)
+                                          setEditExerciseOpen(true)
+                                        }}
+                                        className="text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleDeleteExercise(exercise.id)}
+                                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 )
                               })}
@@ -3060,7 +3153,7 @@ function Dashboard() {
                   ) : (
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                       {progressRecords.map(record => (
-                        <div 
+                        <div
                           key={record.id}
                           className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                           onClick={() => {
@@ -3074,10 +3167,10 @@ function Dashboard() {
                             </div>
                             <div>
                               <h4 className="font-medium">
-                                {new Date(record.date).toLocaleDateString('es-ES', { 
-                                  year: 'numeric', 
-                                  month: 'long', 
-                                  day: 'numeric' 
+                                {new Date(record.date).toLocaleDateString('es-ES', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
                                 })}
                               </h4>
                               <div className="flex gap-2">
@@ -3090,10 +3183,30 @@ function Dashboard() {
                                     Fotos
                                   </Badge>
                                 )}
+                                {record.notes && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <FileText className="w-3 h-3 mr-1" />
+                                    Notas
+                                  </Badge>
+                                )}
                               </div>
                             </div>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-gray-400" />
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingProgress(record)
+                                setEditProgressOpen(true)
+                              }}
+                              className="text-gray-500 hover:text-emerald-600 hover:bg-emerald-50"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <ChevronRight className="w-5 h-5 text-gray-400" />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -3217,8 +3330,8 @@ function Dashboard() {
                   </div>
                 )}
 
-                <Button 
-                  variant="destructive" 
+                <Button
+                  variant="destructive"
                   onClick={() => handleDeleteProgress(selectedProgress.id)}
                   className="w-full"
                 >
@@ -3227,6 +3340,177 @@ function Dashboard() {
                 </Button>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Exercise Dialog */}
+      <Dialog open={editExerciseOpen} onOpenChange={setEditExerciseOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Ejercicio</DialogTitle>
+          </DialogHeader>
+          {editingExercise && (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Nombre del ejercicio</Label>
+                <Input
+                  value={editingExercise.name}
+                  onChange={(e) => setEditingExercise({...editingExercise, name: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Series</Label>
+                  <Input
+                    type="number"
+                    value={editingExercise.sets || ""}
+                    onChange={(e) => setEditingExercise({...editingExercise, sets: e.target.value ? parseInt(e.target.value) : null})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Reps</Label>
+                  <Input
+                    value={editingExercise.reps || ""}
+                    onChange={(e) => setEditingExercise({...editingExercise, reps: e.target.value || null})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Peso (kg)</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={editingExercise.weight || ""}
+                    onChange={(e) => setEditingExercise({...editingExercise, weight: e.target.value ? parseFloat(e.target.value) : null})}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={editingExercise.notes || ""}
+                  onChange={(e) => setEditingExercise({...editingExercise, notes: e.target.value || null})}
+                  placeholder="Notas sobre el ejercicio..."
+                  rows={2}
+                />
+              </div>
+              <Button onClick={handleUpdateExercise} className="w-full bg-emerald-600 hover:bg-emerald-700">
+                <Save className="w-4 h-4 mr-2" />
+                Guardar Cambios
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Progress Dialog */}
+      <Dialog open={editProgressOpen} onOpenChange={setEditProgressOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Progreso</DialogTitle>
+          </DialogHeader>
+          {editingProgress && (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Peso Corporal (kg)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={editingProgress.bodyWeight || ""}
+                  onChange={(e) => setEditingProgress({...editingProgress, bodyWeight: e.target.value ? parseFloat(e.target.value) : null})}
+                />
+              </div>
+              <div>
+                <h4 className="font-medium mb-4">Medidas Corporales (cm)</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Espalda</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editingProgress.backMeasurement || ""}
+                      onChange={(e) => setEditingProgress({...editingProgress, backMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pecho</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editingProgress.chestMeasurement || ""}
+                      onChange={(e) => setEditingProgress({...editingProgress, chestMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Brazo Izq.</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editingProgress.leftArmMeasurement || ""}
+                      onChange={(e) => setEditingProgress({...editingProgress, leftArmMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Brazo Der.</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editingProgress.rightArmMeasurement || ""}
+                      onChange={(e) => setEditingProgress({...editingProgress, rightArmMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Abdomen</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editingProgress.abdomenMeasurement || ""}
+                      onChange={(e) => setEditingProgress({...editingProgress, abdomenMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Glúteos</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editingProgress.glutesMeasurement || ""}
+                      onChange={(e) => setEditingProgress({...editingProgress, glutesMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pierna Izq.</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editingProgress.leftLegMeasurement || ""}
+                      onChange={(e) => setEditingProgress({...editingProgress, leftLegMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pierna Der.</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={editingProgress.rightLegMeasurement || ""}
+                      onChange={(e) => setEditingProgress({...editingProgress, rightLegMeasurement: e.target.value ? parseFloat(e.target.value) : null})}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={editingProgress.notes || ""}
+                  onChange={(e) => setEditingProgress({...editingProgress, notes: e.target.value || null})}
+                  placeholder="Notas adicionales..."
+                  rows={3}
+                />
+              </div>
+              <Button onClick={handleUpdateProgress} className="w-full bg-emerald-600 hover:bg-emerald-700">
+                <Save className="w-4 h-4 mr-2" />
+                Guardar Cambios
+              </Button>
+            </div>
           )}
         </DialogContent>
       </Dialog>

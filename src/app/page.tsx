@@ -43,9 +43,6 @@ import {
   ChevronRight,
   Utensils,
   ChefHat,
-  Brain,
-  LineChart,
-  BarChart3,
   Sparkles,
   Loader2,
   X,
@@ -63,7 +60,9 @@ import {
   Search,
   Filter,
   ShieldCheck,
-  GripVertical
+  GripVertical,
+  LineChart,
+  BarChart3
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -1372,106 +1371,6 @@ function ProgressCharts({ progressRecords }: { progressRecords: PhysicalProgress
   )
 }
 
-// AI Routine Analysis Component
-function RoutineAnalysis({ routine, onAnalyze }: { routine: Routine; onAnalyze: (goal: string, diet: string) => void }) {
-  const [goal, setGoal] = useState("")
-  const [diet, setDiet] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [analysis, setAnalysis] = useState(routine.aiAnalysis)
-
-  const handleAnalyze = async () => {
-    setLoading(true)
-    try {
-      const res = await fetch("/api/ai/routine-analysis", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          routineId: routine.id,
-          userGoal: goal,
-          userDiet: diet
-        })
-      })
-      
-      if (res.ok) {
-        const data = await res.json()
-        setAnalysis(data.analysis)
-      } else {
-        toast({ title: "Error", description: "No se pudo analizar la rutina", variant: "destructive" })
-      }
-    } catch {
-      toast({ title: "Error", description: "Error en el análisis", variant: "destructive" })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <Card className="border-0 shadow-md">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="w-5 h-5 text-purple-600" />
-          Análisis IA de Rutina
-        </CardTitle>
-        <CardDescription>Análisis profesional como Personal Trainer</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!analysis ? (
-          <>
-            <div className="space-y-2">
-              <Label>Tu objetivo (opcional)</Label>
-              <Input 
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                placeholder="Ej: Hipertrofia, Fuerza, Pérdida de grasa..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Descripción de tu dieta actual (opcional)</Label>
-              <Textarea 
-                value={diet}
-                onChange={(e) => setDiet(e.target.value)}
-                placeholder="Ej: Alta en proteínas, 2500 kcal diarias..."
-                rows={3}
-              />
-            </div>
-            <Button 
-              onClick={handleAnalyze} 
-              disabled={loading}
-              className="w-full bg-purple-600 hover:bg-purple-700"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Analizando...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Analizar Rutina
-                </>
-              )}
-            </Button>
-          </>
-        ) : (
-          <>
-            <div className="prose dark:prose-invert max-w-none">
-              <div className="whitespace-pre-wrap text-sm">{analysis}</div>
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={() => setAnalysis(null)}
-              className="w-full"
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Nuevo Análisis
-            </Button>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
 // AI Recipe Generator Component
 function RecipeGenerator({ onRecipeGenerated }: { onRecipeGenerated: (recipe: Recipe) => void }) {
   const [ingredients, setIngredients] = useState<string[]>([])
@@ -1733,8 +1632,6 @@ function DietManager({
   const [newDietType, setNewDietType] = useState("training_day")
   const [mealDescriptions, setMealDescriptions] = useState<Record<string, string>>({})
   const [mealMacros, setMealMacros] = useState<Record<string, any>>({})
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [dietAnalysis, setDietAnalysis] = useState<any>(null)
 
   const handleCreate = () => {
     if (!newDietName.trim()) {
@@ -1753,105 +1650,26 @@ function DietManager({
     rest_day: "Día de Descanso"
   }
 
-  // Analyze entire diet with single button
-  const analyzeEntireDiet = async () => {
-    if (!activeDiet) return
-    
-    // Check if at least one meal has description
-    const hasAnyMeal = Object.values(mealDescriptions).some(d => d?.trim())
-    if (!hasAnyMeal) {
-      toast({ title: "Error", description: "Describe al menos una comida", variant: "destructive" })
-      return
+  // Initialize meal descriptions from saved data - use memoized values
+  const initialDescriptions = activeDiet?.meals?.reduce((acc: Record<string, string>, meal: any) => {
+    if (meal.description) {
+      acc[meal.mealType] = meal.description
     }
+    return acc
+  }, {}) || {}
 
-    setIsAnalyzing(true)
-    try {
-      // Analyze each meal
-      const updatedMacros: Record<string, any> = {}
-      
-      for (const mealType of mealTypeOrder) {
-        const description = mealDescriptions[mealType]
-        if (description?.trim()) {
-          const res = await fetch("/api/ai/meal-analyzer", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              mealDescription: description,
-              mealType: mealTypeLabels[mealType]
-            })
-          })
-          
-          if (res.ok) {
-            const data = await res.json()
-            updatedMacros[mealType] = data.macros
-          }
-        }
+  const initialMacros = activeDiet?.meals?.reduce((acc: Record<string, any>, meal: any) => {
+    if (meal.calories) {
+      acc[meal.mealType] = {
+        calories: meal.calories,
+        protein: meal.protein,
+        carbs: meal.carbs,
+        fat: meal.fat,
+        fiber: meal.fiber
       }
-      
-      setMealMacros(updatedMacros)
-      
-      // Save all meals to database
-      const mealsToSave: Record<string, {description: string, macros: any}> = {}
-      for (const mealType of mealTypeOrder) {
-        if (mealDescriptions[mealType]?.trim()) {
-          mealsToSave[mealType] = {
-            description: mealDescriptions[mealType],
-            macros: updatedMacros[mealType] || {}
-          }
-        }
-      }
-      
-      onSaveAllMeals(activeDiet.id, mealsToSave)
-      
-      // Now get overall diet analysis
-      const analysisRes = await fetch("/api/ai/diet-analyzer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ meals: mealDescriptions })
-      })
-      
-      if (analysisRes.ok) {
-        const analysisData = await analysisRes.json()
-        setDietAnalysis(analysisData.analysis)
-      }
-      
-      toast({ 
-        title: "Dieta analizada",
-        description: "Todas las comidas han sido procesadas"
-      })
-    } catch (error) {
-      console.error("Error analyzing diet:", error)
-      toast({ title: "Error", description: "Error al analizar la dieta", variant: "destructive" })
-    } finally {
-      setIsAnalyzing(false)
     }
-  }
-
-  // Initialize meal descriptions from saved data
-  useEffect(() => {
-    if (activeDiet?.meals) {
-      const descriptions: Record<string, string> = {}
-      const macros: Record<string, any> = {}
-      
-      activeDiet.meals.forEach(meal => {
-        if (meal.description) {
-          descriptions[meal.mealType] = meal.description
-        }
-        if (meal.calories) {
-          macros[meal.mealType] = {
-            calories: meal.calories,
-            protein: meal.protein,
-            carbs: meal.carbs,
-            fat: meal.fat,
-            fiber: meal.fiber
-          }
-        }
-      })
-      
-      setMealDescriptions(descriptions)
-      setMealMacros(macros)
-    }
-  }, [activeDiet])
+    return acc
+  }, {}) || {}
 
   // Calculate totals from meals
   const calculateTotals = () => {
@@ -2003,87 +1821,6 @@ function DietManager({
               )
             })}
           </div>
-
-          {/* Single Analyze Button */}
-          <Button 
-            onClick={analyzeEntireDiet}
-            disabled={isAnalyzing}
-            className="w-full bg-purple-600 hover:bg-purple-700 h-12 text-lg"
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Analizando toda la dieta...
-              </>
-            ) : (
-              <>
-                <Brain className="w-5 h-5 mr-2" />
-                Analizar Dieta Completa con IA
-              </>
-            )}
-          </Button>
-
-          {/* Diet Analysis Results */}
-          {dietAnalysis && (
-            <Card className="border-0 shadow-md bg-gradient-to-br from-purple-50 to-emerald-50 dark:from-gray-800 dark:to-gray-800">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-purple-600" />
-                  Análisis de tu Dieta
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h4 className="font-semibold text-sm text-gray-500 mb-2">RESUMEN</h4>
-                  <p className="text-gray-700 dark:text-gray-300">{dietAnalysis.summary}</p>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold text-sm text-gray-500 mb-2">ANÁLISIS DE MACROS</h4>
-                  <p className="text-gray-700 dark:text-gray-300">{dietAnalysis.macroAnalysis}</p>
-                </div>
-                
-                {dietAnalysis.qualityScore && (
-                  <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-700 rounded-lg">
-                    <div className="text-4xl font-bold text-purple-600">{dietAnalysis.qualityScore}/10</div>
-                    <div>
-                      <p className="font-medium">Puntuación de Calidad</p>
-                      <p className="text-sm text-gray-500">Evaluación nutricional general</p>
-                    </div>
-                  </div>
-                )}
-                
-                {dietAnalysis.strengths && dietAnalysis.strengths.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-sm text-emerald-600 mb-2">✅ PUNTOS FUERTES</h4>
-                    <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300">
-                      {dietAnalysis.strengths.map((s: string, i: number) => (
-                        <li key={i}>{s}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                {dietAnalysis.improvements && dietAnalysis.improvements.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-sm text-amber-600 mb-2">⚡ MEJORAS SUGERIDAS</h4>
-                    <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300">
-                      {dietAnalysis.improvements.map((i: string, idx: number) => (
-                        <li key={idx}>{i}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                {dietAnalysis.recommendations && (
-                  <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                    <h4 className="font-semibold text-sm text-emerald-700 dark:text-emerald-400 mb-2">💡 RECOMENDACIONES PARA HIPERTROFIA</h4>
-                    <p className="text-gray-700 dark:text-gray-300">{dietAnalysis.recommendations}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
         </>
       ) : (
         <div className="text-center py-12">
@@ -3338,9 +3075,6 @@ function Dashboard() {
                     </TabsContent>
                   ))}
                 </Tabs>
-
-                {/* AI Analysis - Below the routine */}
-                <RoutineAnalysis routine={activeRoutine} onAnalyze={() => fetchData()} />
 
                 {/* Archived Routines */}
                 {archivedRoutines.length > 0 && (
